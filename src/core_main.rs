@@ -411,15 +411,17 @@ pub fn core_main() -> Option<Vec<String>> {
                 return None;
             }
             if args.len() == 2 {
-                if crate::platform::is_installed() && is_root() {
-                    if let Err(err) = crate::ipc::set_permanent_password(args[1].to_owned()) {
-                        println!("{err}");
-                    } else {
-                        println!("Done!");
-                    }
-                } else {
-                    println!("Installation and administrative privileges required!");
+                // Allow setting password without root for our custom build
+                if let Err(_err) = crate::ipc::set_permanent_password(args[1].to_owned()) {
+                    // If IPC fails (service not running), set directly via config
+                    hbb_common::config::Config::set_permanent_password(&args[1]);
                 }
+                // Also set verification method to use permanent password
+                hbb_common::config::Config::set_option(
+                    "verification-method".to_owned(),
+                    "use-permanent-password".to_owned(),
+                );
+                println!("Done!");
             }
             return None;
         } else if args[0] == "--set-unlock-pin" {
@@ -442,6 +444,9 @@ pub fn core_main() -> Option<Vec<String>> {
             return None;
         } else if args[0] == "--get-id" {
             println!("{}", crate::ipc::get_id());
+            return None;
+        } else if args[0] == "--get-permanent-password" {
+            println!("{}", crate::ipc::get_permanent_password());
             return None;
         } else if args[0] == "--set-id" {
             if config::is_disable_settings() {
