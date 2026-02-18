@@ -375,11 +375,15 @@ pub fn core_main() -> Option<Vec<String>> {
             }
             #[cfg(windows)]
             crate::privacy_mode::restore_reg_connectivity(true, false);
-            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            #[cfg(target_os = "linux")]
             {
                 crate::start_server(true, false);
             }
-            #[cfg(target_os = "macos")]
+            // On Windows and macOS: run the server in a background thread
+            // and the tray on the main thread.  This gives us both an
+            // immediate rendezvous-server connection AND a system-tray icon
+            // with no visible main window.
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             {
                 let handler = std::thread::spawn(move || crate::start_server(true, false));
                 crate::tray::start_tray();
