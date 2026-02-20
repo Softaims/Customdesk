@@ -59,14 +59,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final isIncomingOnly = bind.isIncomingOnly();
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         buildLeftPane(context),
-        if (!isIncomingOnly) const VerticalDivider(width: 1),
-        if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
+        const VerticalDivider(width: 1),
+        Expanded(child: buildRightPane(context)),
       ],
     ));
   }
@@ -77,103 +76,98 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildLeftPane(BuildContext context) {
-    final isIncomingOnly = bind.isIncomingOnly();
-    final isOutgoingOnly = bind.isOutgoingOnly();
-    final children = <Widget>[
-      if (!isOutgoingOnly) buildPresetPasswordWarning(),
-      if (bind.isCustomClient())
-        Align(
-          alignment: Alignment.center,
-          child: loadPowered(context),
-        ),
-      Align(
-        alignment: Alignment.center,
-        child: loadLogo(),
-      ),
-      buildTip(context),
-      if (!isOutgoingOnly) buildIDBoard(context),
-      if (!isOutgoingOnly) buildPasswordBoard(context),
-      FutureBuilder<Widget>(
-        future: Future.value(
-            Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),
-        builder: (_, data) {
-          if (data.hasData) {
-            if (isIncomingOnly) {
-              if (isInHomePage()) {
-                Future.delayed(Duration(milliseconds: 300), () {
-                  _updateWindowSize();
-                });
-              }
-            }
-            return data.data!;
-          } else {
-            return const Offstage();
-          }
-        },
-      ),
-      buildPluginEntry(),
-    ];
-    if (isIncomingOnly) {
-      children.addAll([
-        Divider(),
-        OnlineStatusWidget(
-          onSvcStatusChanged: () {
-            if (isInHomePage()) {
-              Future.delayed(Duration(milliseconds: 300), () {
-                _updateWindowSize();
-              });
-            }
-          },
-        ).marginOnly(bottom: 6, right: 6)
-      ]);
-    }
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
     return ChangeNotifierProvider.value(
       value: gFFI.serverModel,
       child: Container(
-        width: isIncomingOnly ? 280.0 : 200.0,
+        width: 200.0,
         color: Theme.of(context).colorScheme.background,
         child: Stack(
           children: [
             Column(
               children: [
-                SingleChildScrollView(
-                  controller: _leftPaneScrollController,
-                  child: Column(
-                    key: _childKey,
-                    children: children,
+                const SizedBox(height: 30),
+                Align(
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'GIGIdesk',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF4B7BEC),
+                    ),
                   ),
                 ),
-                Expanded(child: Container())
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Remote Desktop',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Consumer<ServerModel>(
+                  builder: (context, model, _) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Obx(() => Text(
+                                  stateGlobal.svcStatus.value == SvcStatus.ready
+                                      ? translate('Ready')
+                                      : translate('not_ready_status'),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: stateGlobal.svcStatus.value == SvcStatus.ready
+                                        ? Colors.green
+                                        : Colors.orange,
+                                  ),
+                                )),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                Expanded(child: Container()),
               ],
             ),
-            if (isOutgoingOnly)
-              Positioned(
-                bottom: 6,
-                left: 12,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: InkWell(
-                    child: Obx(
-                      () => Icon(
-                        Icons.settings,
-                        color: _editHover.value
-                            ? textColor
-                            : Colors.grey.withOpacity(0.5),
-                        size: 22,
-                      ),
+            Positioned(
+              bottom: 6,
+              left: 12,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: InkWell(
+                  child: Obx(
+                    () => Icon(
+                      Icons.settings,
+                      color: _editHover.value
+                          ? textColor
+                          : Colors.grey.withOpacity(0.5),
+                      size: 22,
                     ),
-                    onTap: () => {
-                      if (DesktopSettingPage.tabKeys.isNotEmpty)
-                        {
-                          DesktopSettingPage.switch2page(
-                              DesktopSettingPage.tabKeys[0])
-                        }
-                    },
-                    onHover: (value) => _editHover.value = value,
                   ),
+                  onTap: () => {
+                    if (DesktopSettingPage.tabKeys.isNotEmpty)
+                      {
+                        DesktopSettingPage.switch2page(
+                            DesktopSettingPage.tabKeys[0])
+                      }
+                  },
+                  onHover: (value) => _editHover.value = value,
                 ),
-              )
+              ),
+            )
           ],
         ),
       ),
@@ -183,7 +177,35 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   buildRightPane(BuildContext context) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: ConnectionPage(),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.desktop_windows_outlined,
+              size: 64,
+              color: Colors.grey.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'GIGIdesk',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF4B7BEC),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Remote Desktop Service',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -437,7 +459,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
       String btnText = isToUpdate ? 'Update' : 'Download';
       GestureTapCallback onPressed = () async {
-        final Uri url = Uri.parse('https://rustdesk.com/download');
+        final Uri url = Uri.parse('https://softaims.com');
         await launchUrl(url);
       };
       if (isToUpdate) {
@@ -453,7 +475,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           closeButton: true,
           help: isToUpdate ? 'Changelog' : null,
           link: isToUpdate
-              ? 'https://github.com/rustdesk/rustdesk/releases/tag/${bind.mainGetNewVersion()}'
+              ? 'https://softaims.com'
               : null);
     }
     if (systemError.isNotEmpty) {
@@ -699,6 +721,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     super.initState();
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
       await gFFI.serverModel.fetchID();
+      // Update connection status (was previously in OnlineStatusWidget)
+      try {
+        final status =
+            jsonDecode(await bind.mainGetConnectStatus()) as Map<String, dynamic>;
+        final statusNum = status['status_num'] as int;
+        if (statusNum == 0) {
+          stateGlobal.svcStatus.value = SvcStatus.connecting;
+        } else if (statusNum == -1) {
+          stateGlobal.svcStatus.value = SvcStatus.notReady;
+        } else if (statusNum == 1) {
+          stateGlobal.svcStatus.value = SvcStatus.ready;
+        }
+      } catch (_) {}
       final error = await bind.mainGetError();
       if (systemError != error) {
         systemError = error;

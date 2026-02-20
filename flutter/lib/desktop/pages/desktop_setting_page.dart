@@ -454,22 +454,9 @@ class _GeneralState extends State<_General> {
   }
 
   Widget service() {
-    if (bind.isOutgoingOnly()) {
-      return const Offstage();
-    }
-
-    return _Card(title: 'Service', children: [
-      Obx(() => _Button(serviceStop.value ? 'Start' : 'Stop', () {
-            () async {
-              serviceBtnEnabled.value = false;
-              await start_service(serviceStop.value);
-              // enable the button after 1 second
-              Future.delayed(const Duration(seconds: 1), () {
-                serviceBtnEnabled.value = true;
-              });
-            }();
-          }, enabled: serviceBtnEnabled.value))
-    ]);
+    // Service control is disabled for GIGIdesk — the service should always run
+    // to keep the elder's machine available for remote assistance.
+    return const Offstage();
   }
 
   Widget other() {
@@ -2316,7 +2303,7 @@ class _AboutState extends State<_About> {
       final scrollController = ScrollController();
       return SingleChildScrollView(
         controller: scrollController,
-        child: _Card(title: translate('About RustDesk'), children: [
+        child: _Card(title: translate('About GIGIdesk'), children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2335,7 +2322,7 @@ class _AboutState extends State<_About> {
                         .marginSymmetric(vertical: 4.0)),
               InkWell(
                   onTap: () {
-                    launchUrlString('https://rustdesk.com/privacy.html');
+                    launchUrlString('https://softaims.com/privacy');
                   },
                   child: Text(
                     translate('Privacy Statement'),
@@ -2343,7 +2330,7 @@ class _AboutState extends State<_About> {
                   ).marginSymmetric(vertical: 4.0)),
               InkWell(
                   onTap: () {
-                    launchUrlString('https://rustdesk.com');
+                    launchUrlString('https://softaims.com');
                   },
                   child: Text(
                     translate('Website'),
@@ -2361,7 +2348,7 @@ class _AboutState extends State<_About> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Copyright © ${DateTime.now().toString().substring(0, 4)} Purslane Ltd.\n$license',
+                            'Copyright © ${DateTime.now().toString().substring(0, 4)} Softaims\n$license',
                             style: const TextStyle(color: Colors.white),
                           ),
                           Text(

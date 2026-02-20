@@ -632,19 +632,15 @@ class _DesktopTabState extends State<DesktopTab>
                         )),
                     Offstage(
                       offstage: kUseCompatibleUiMode || isMacOS,
-                      child: Row(children: [
-                        Offstage(
-                          offstage: !showLogo,
-                          child: loadIcon(16),
+                      child: const Text(
+                        "GIGIdesk",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4B7BEC),
                         ),
-                        Offstage(
-                            offstage: !showTitle,
-                            child: const Text(
-                              "RustDesk",
-                              style: TextStyle(fontSize: 13),
-                            ).marginOnly(left: 2))
-                      ]).marginOnly(
-                        left: 5,
+                      ).marginOnly(
+                        left: 8,
                         right: 10,
                       ),
                     ),
