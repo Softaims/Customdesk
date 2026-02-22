@@ -34,10 +34,22 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  # Read the target arch from CustomArch.xcconfig (arm64 or x86_64)
+  custom_arch_file = File.join(__dir__, 'Flutter', 'CustomArch.xcconfig')
+  target_arch = 'x86_64' # default
+  if File.exist?(custom_arch_file)
+    File.foreach(custom_arch_file) do |line|
+      if line =~ /^\s*ARCHS\s*=\s*(\S+)/
+        target_arch = $1
+        break
+      end
+    end
+  end
+
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
     target.build_configurations.each do |config|
-      config.build_settings['ARCHS'] = 'x86_64'
+      config.build_settings['ARCHS'] = target_arch
       config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
     end
   end
