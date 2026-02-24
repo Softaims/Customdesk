@@ -182,3 +182,174 @@ pod install
 | `target/<triple>/release/service` | Compiled service binary |
 | `desktop/assets/GIGIdesk-*.app` | Output — embedded into Electron app |
 | `builds/GIGIdesk-*.app` | Output — secure backup in Customdesk repo (gitignored) |
+
+---
+
+---
+
+# GIGIdesk Windows Build Script Guide
+
+## Overview
+
+`build-gigidesk-windows.ps1` automates the entire GIGIdesk Windows build pipeline — from compiling Rust, through Flutter, to a ready-to-embed release folder saved in `gigiChat-desktop/assets/`.
+
+It builds **Windows x64 only** (`x86_64-pc-windows-msvc`).
+
+---
+
+## Quick Start
+
+```powershell
+cd Customdesk
+
+# Build Windows x64
+.\build-gigidesk-windows.ps1
+```
+
+---
+
+## Prerequisites
+
+The script checks these automatically and will abort if anything is missing.
+
+| Requirement | Install / Setup |
+|---|---|
+| **Rust** (stable, MSVC toolchain) | [rustup.rs](https://rustup.rs) — choose the `x86_64-pc-windows-msvc` host |
+| **Rust target** | `rustup target add x86_64-pc-windows-msvc` |
+| **Flutter** (stable) | [flutter.dev/docs/get-started/install/windows](https://flutter.dev/docs/get-started/install/windows) |
+| **vcpkg** | `git clone https://github.com/microsoft/vcpkg %USERPROFILE%\vcpkg && %USERPROFILE%\vcpkg\bootstrap-vcpkg.bat` |
+| **Visual Studio Build Tools 2022** | Required by the MSVC Rust toolchain and Flutter Windows renderer |
+| **Windows SDK** | Installed via Visual Studio Installer |
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `VCPKG_ROOT` | `%USERPROFILE%\vcpkg` | Path to vcpkg installation |
+
+You can override before running:
+```powershell
+$env:VCPKG_ROOT = "C:\tools\vcpkg"
+.\build-gigidesk-windows.ps1
+```
+
+---
+
+## What the Script Does
+
+```
+1. Check prerequisites   → verifies cargo, flutter, rustup, VCPKG_ROOT, Rust target
+2. Build Rust            → cargo build --features flutter --release --target x86_64-pc-windows-msvc
+3. Copy DLL              → copies librustdesk.dll -> target\release\
+4. Build Flutter         → flutter build windows --release  (clean previous build first)
+5. Copy DLL to output    → copies librustdesk.dll into Flutter release folder
+6. Copy service.exe      → copies service.exe into Flutter release folder
+7. Verify output         → confirms GIGIdesk.exe, librustdesk.dll, service.exe exist
+8. Save output           → copies Release\ folder to gigiChat-desktop\bin\ and builds\
+```
+
+### Architecture
+
+| Target | Rust Triple | Output Folder |
+|---|---|---|
+| Windows x64 | `x86_64-pc-windows-msvc` | `GIGIdesk-x64\` |
+
+---
+
+## Output
+
+The finished build folder is saved to **two locations**:
+
+### 1. `gigiChat-desktop/bin/` — used by Electron packaging
+```
+gigiChat-desktop/bin/
+└── GIGIdesk-x64/
+    ├── GIGIdesk.exe
+    ├── librustdesk.dll
+    ├── service.exe
+    ├── flutter_windows.dll
+    └── data/
+```
+
+### 2. `Customdesk/builds/` — local backup in this repo
+```
+Customdesk/builds/
+└── GIGIdesk-x64/
+    ├── GIGIdesk.exe
+    ├── librustdesk.dll
+    ├── service.exe
+    └── ...
+```
+
+> `builds/` is gitignored since the release folders contain large binaries.
+
+---
+
+## Typical Build Times
+
+| Build | Cold (first time) | Warm (cached Rust) |
+|---|---|---|
+| Windows x64 | ~20–30 min | ~4–6 min |
+
+> Rust compilation (`x86_64-pc-windows-msvc`) is the main bottleneck. Subsequent builds with only Flutter changes are much faster.
+
+---
+
+## After Building — Making GIGI Connect Windows Installers
+
+Once `GIGIdesk-x64\` is in `gigiChat-desktop/bin/`, build the Electron Windows package:
+
+```powershell
+cd gigiChat-desktop
+
+# Windows x64 installer
+npm run make
+```
+
+Output lands in `gigiChat-desktop/out/make/`.
+
+---
+
+## Troubleshooting
+
+### `cargo build` fails with link errors
+Ensure the **MSVC Build Tools** are installed and the active Rust toolchain is `stable-x86_64-pc-windows-msvc`:
+```powershell
+rustup show
+rustup default stable-x86_64-pc-windows-msvc
+```
+
+### `librustdesk.dll` not found after Rust build
+Check that `[lib] crate-type` in `Cargo.toml` includes `cdylib`. The expected output path is:
+```
+target\x86_64-pc-windows-msvc\release\librustdesk.dll
+```
+
+### Flutter build fails
+Make sure Visual Studio with the **Desktop development with C++** workload is installed. Run:
+```powershell
+flutter doctor
+```
+and resolve any reported issues before re-running the script.
+
+### `VCPKG_ROOT` not found
+Either set `$env:VCPKG_ROOT` before running, or install vcpkg at the default path `%USERPROFILE%\vcpkg`.
+
+### PowerShell execution policy
+If PowerShell blocks the script, run:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+---
+
+## File Reference
+
+| File | Purpose |
+|---|---|
+| `build-gigidesk-windows.ps1` | Windows build script (this section) |
+| `Cargo.toml` | Rust package config (`gigidesk`, features: `flutter`) |
+| `target\x86_64-pc-windows-msvc\release\librustdesk.dll` | Compiled Rust shared library (Windows) |
+| `target\x86_64-pc-windows-msvc\release\service.exe` | Compiled service binary (Windows) |
+| `gigiChat-desktop\bin\GIGIdesk-x64\` | Output — embedded into Electron app |
+| `builds\GIGIdesk-x64\` | Output — local backup in Customdesk repo (gitignored) |
