@@ -1,4 +1,2 @@
-// Force arm64 architecture for Apple Silicon cross-compile
-ARCHS = arm64
-ONLY_ACTIVE_ARCH = NO
-EXCLUDED_ARCHS = x86_64
+ARCHS = x86_64
+EXCLUDED_ARCHS = arm64

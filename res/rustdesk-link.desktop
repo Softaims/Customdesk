@@ -8,4 +8,4 @@ Icon=gigidesk
 Terminal=false
 Type=Application
 StartupNotify=false
-StartupWMClass=rustdesk
+StartupWMClass=gigidesk
