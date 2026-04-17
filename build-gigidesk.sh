@@ -13,7 +13,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FLUTTER_DIR="$SCRIPT_DIR/flutter"
 XCCONFIG="$FLUTTER_DIR/macos/Flutter/CustomArch.xcconfig"
-OUTPUT_DIR="$SCRIPT_DIR/../desktop/bin"
+OUTPUT_DIR="$SCRIPT_DIR/../desktop/assets"
 BUILDS_DIR="$SCRIPT_DIR/builds"
 
 MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.14}"
