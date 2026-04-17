@@ -24,12 +24,29 @@ $ErrorActionPreference = 'Stop'
 # ─── Configuration ───────────────────────────────────────────────────────────
 $ScriptDir   = $PSScriptRoot
 $FlutterDir  = Join-Path $ScriptDir 'flutter'
-$OutputDir   = Join-Path $ScriptDir '..\desktop\bin'
 $BuildsDir   = Join-Path $ScriptDir 'builds'
 
 $RustTarget  = 'x86_64-pc-windows-msvc'
 $AppName     = 'GIGIdesk'
 $CargoFeatures = 'flutter'
+
+function Resolve-DesktopBinDir {
+    $candidates = @(
+        (Join-Path $ScriptDir '..\gigiChat-desktop\bin'),
+        (Join-Path $ScriptDir '..\desktop\bin')
+    )
+
+    foreach ($candidate in $candidates) {
+        $projectDir = Split-Path -Parent $candidate
+        if (Test-Path $projectDir) {
+            return $candidate
+        }
+    }
+
+    throw "Could not locate desktop project directory. Expected one of: $($candidates -join ', ')"
+}
+
+$OutputDir = Resolve-DesktopBinDir
 
 # Flutter Windows release output (Flutter always builds x64 on Windows)
 $FlutterRelease = Join-Path $FlutterDir 'build\windows\x64\runner\Release'
@@ -187,8 +204,22 @@ function Invoke-Verify {
     Write-Step 'Verifying build output'
     $ok = $true
 
+    $exeCandidates = @("$AppName.exe", 'gigidesk.exe')
+    $resolvedExe = $null
+    foreach ($exeName in $exeCandidates) {
+        $candidate = Join-Path $FlutterRelease $exeName
+        if (Test-Path $candidate) {
+            $resolvedExe = $candidate
+            break
+        }
+    }
+
+    if (-not $resolvedExe) {
+        $resolvedExe = Join-Path $FlutterRelease "$AppName.exe"
+    }
+
     $checks = @(
-        (Join-Path $FlutterRelease "$AppName.exe"),
+        $resolvedExe,
         (Join-Path $FlutterRelease 'librustdesk.dll'),
         (Join-Path $FlutterRelease 'service.exe')
     )
@@ -217,16 +248,18 @@ function Save-BuildOutput {
     $destDesktop = Join-Path $OutputDir $destName
     if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null }
     if (Test-Path $destDesktop) { Remove-Item -Recurse -Force $destDesktop }
-    Copy-Item -Recurse -Path $FlutterRelease -Destination $destDesktop
+    New-Item -ItemType Directory -Path $destDesktop -Force | Out-Null
+    Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $destDesktop -Force
     $sizeMB = [math]::Round((Get-ChildItem $destDesktop -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-    Write-Success "$destName -> desktop\bin\ (${sizeMB} MB)"
+    Write-Success "$destName -> $OutputDir (${sizeMB} MB)"
 
     # 2) Customdesk/builds  — local backup
     if (-not (Test-Path $BuildsDir)) { New-Item -ItemType Directory -Path $BuildsDir -Force | Out-Null }
     $destBuilds = Join-Path $BuildsDir $destName
     if (Test-Path $destBuilds) { Remove-Item -Recurse -Force $destBuilds }
-    Copy-Item -Recurse -Path $FlutterRelease -Destination $destBuilds
-    Write-Success "$destName -> builds\ (backup)"
+    New-Item -ItemType Directory -Path $destBuilds -Force | Out-Null
+    Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $destBuilds -Force
+    Write-Success "$destName -> $BuildsDir (backup)"
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
@@ -258,6 +291,8 @@ function Main {
     Write-Host 'Output:' -ForegroundColor White
     $outFolder = Join-Path $OutputDir 'rustdesk-windows'
     if (Test-Path $outFolder) {
+        Write-Host "Desktop package source: $outFolder" -ForegroundColor DarkCyan
+        Write-Host "Backup output: $(Join-Path $BuildsDir 'rustdesk-windows')" -ForegroundColor DarkCyan
         Get-ChildItem $outFolder -File | Select-Object Name, @{N='Size';E={ "$([math]::Round($_.Length/1KB,1)) KB" }} |
             Format-Table -AutoSize
     }
