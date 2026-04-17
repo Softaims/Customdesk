@@ -13,7 +13,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FLUTTER_DIR="$SCRIPT_DIR/flutter"
 XCCONFIG="$FLUTTER_DIR/macos/Flutter/CustomArch.xcconfig"
-OUTPUT_DIR="$SCRIPT_DIR/../desktop/assets"
+OUTPUT_DIR="$SCRIPT_DIR/../desktop/bin"
 BUILDS_DIR="$SCRIPT_DIR/builds"
 
 MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.14}"
@@ -240,13 +240,13 @@ save_app() {
 
   local src="$FLUTTER_DIR/build/macos/Build/Products/Release/$APP_NAME.app"
 
-  # 1) Save to desktop/assets (embedded into Electron app)
+  # 1) Save to desktop/bin (Electron Forge make uses this path)
   local dest_desktop="$OUTPUT_DIR/$APP_NAME-$label.app"
   rm -rf "$dest_desktop"
   cp -R "$src" "$dest_desktop"
   local size
   size=$(du -sh "$dest_desktop" | cut -f1)
-  success "$APP_NAME-$label.app → desktop/assets/ ($size)"
+  success "$APP_NAME-$label.app → desktop/bin/ ($size)"
 
   # 2) Save to Customdesk/builds (secure backup in this repo)
   mkdir -p "$BUILDS_DIR"

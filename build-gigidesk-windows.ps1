@@ -8,7 +8,7 @@
 
     Compiles Rust (x86_64-pc-windows-msvc), builds Flutter for Windows,
     copies librustdesk.dll and service.exe into the Flutter output, then
-    saves the finished build to desktop/assets/ and Customdesk/builds/.
+    saves the finished build to desktop/bin/rustdesk-windows/ and Customdesk/builds/.
 
 .EXAMPLE
     .\build-gigidesk-windows.ps1
@@ -24,7 +24,7 @@ $ErrorActionPreference = 'Stop'
 # ─── Configuration ───────────────────────────────────────────────────────────
 $ScriptDir   = $PSScriptRoot
 $FlutterDir  = Join-Path $ScriptDir 'flutter'
-$OutputDir   = Join-Path $ScriptDir '..\gigiChat-desktop\bin'
+$OutputDir   = Join-Path $ScriptDir '..\desktop\bin'
 $BuildsDir   = Join-Path $ScriptDir 'builds'
 
 $RustTarget  = 'x86_64-pc-windows-msvc'
@@ -211,16 +211,15 @@ function Invoke-Verify {
 function Save-BuildOutput {
     Write-Step 'Saving build output'
 
-    $label      = 'x64'
-    $destName   = "$AppName-$label"
+    $destName   = 'rustdesk-windows'
 
-    # 1) desktop/assets  — embedded into Electron app
+    # 1) desktop/bin/rustdesk-windows — embedded into Electron app (npm run dist)
     $destDesktop = Join-Path $OutputDir $destName
     if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null }
     if (Test-Path $destDesktop) { Remove-Item -Recurse -Force $destDesktop }
     Copy-Item -Recurse -Path $FlutterRelease -Destination $destDesktop
     $sizeMB = [math]::Round((Get-ChildItem $destDesktop -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-    Write-Success "$destName -> gigiChat-desktop\assets\ (${sizeMB} MB)"
+    Write-Success "$destName -> desktop\bin\ (${sizeMB} MB)"
 
     # 2) Customdesk/builds  — local backup
     if (-not (Test-Path $BuildsDir)) { New-Item -ItemType Directory -Path $BuildsDir -Force | Out-Null }
@@ -257,7 +256,7 @@ function Main {
     Write-Banner "Build complete in $(Format-Elapsed $elapsed)"
 
     Write-Host 'Output:' -ForegroundColor White
-    $outFolder = Join-Path $OutputDir "$AppName-x64"
+    $outFolder = Join-Path $OutputDir 'rustdesk-windows'
     if (Test-Path $outFolder) {
         Get-ChildItem $outFolder -File | Select-Object Name, @{N='Size';E={ "$([math]::Round($_.Length/1KB,1)) KB" }} |
             Format-Table -AutoSize
