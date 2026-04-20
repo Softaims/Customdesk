@@ -738,17 +738,11 @@ impl RendezvousMediator {
         Ok(())
     }
 
-    fn get_relay_server(&self, provided_by_rendezvous_server: String) -> String {
-        let mut relay_server = Config::get_option("relay-server");
-        if relay_server.is_empty() {
-            relay_server = provided_by_rendezvous_server;
-        }
-        if relay_server.is_empty() {
-            relay_server = RENDEZVOUS_SERVERS
-                .first()
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-        }
+    fn get_relay_server(&self, _provided_by_rendezvous_server: String) -> String {
+        let mut relay_server = RENDEZVOUS_SERVERS
+            .first()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
         if relay_server.is_empty() {
             relay_server = crate::increase_port(&self.host, 1);
         }
