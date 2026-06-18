@@ -1,182 +1,83 @@
-<p align="center">
-  <img src="res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
-  <a href="#raw-steps-to-build">Build</a> •
-  <a href="#how-to-build-with-docker">Docker</a> •
-  <a href="#file-structure">Structure</a> •
-  <a href="#snapshot">Snapshot</a><br>
-  [<a href="docs/README-UA.md">Українська</a>] | [<a href="docs/README-CS.md">česky</a>] | [<a href="docs/README-ZH.md">中文</a>] | [<a href="docs/README-HU.md">Magyar</a>] | [<a href="docs/README-ES.md">Español</a>] | [<a href="docs/README-FA.md">فارسی</a>] | [<a href="docs/README-FR.md">Français</a>] | [<a href="docs/README-DE.md">Deutsch</a>] | [<a href="docs/README-PL.md">Polski</a>] | [<a href="docs/README-ID.md">Indonesian</a>] | [<a href="docs/README-FI.md">Suomi</a>] | [<a href="docs/README-ML.md">മലയാളം</a>] | [<a href="docs/README-JP.md">日本語</a>] | [<a href="docs/README-NL.md">Nederlands</a>] | [<a href="docs/README-IT.md">Italiano</a>] | [<a href="docs/README-RU.md">Русский</a>] | [<a href="docs/README-PTBR.md">Português (Brasil)</a>] | [<a href="docs/README-EO.md">Esperanto</a>] | [<a href="docs/README-KR.md">한국어</a>] | [<a href="docs/README-AR.md">العربي</a>] | [<a href="docs/README-VN.md">Tiếng Việt</a>] | [<a href="docs/README-DA.md">Dansk</a>] | [<a href="docs/README-GR.md">Ελληνικά</a>] | [<a href="docs/README-TR.md">Türkçe</a>] | [<a href="docs/README-NO.md">Norsk</a>] | [<a href="docs/README-RO.md">Română</a>]<br>
-  <b>We need your help to translate this README, <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">RustDesk UI</a> and <a href="https://github.com/rustdesk/doc.rustdesk.com">RustDesk Doc</a> to your native language</b>
-</p>
+# GIGIdesk — the remote-desktop engine for GIGI
 
-> [!Caution]
-> **Misuse Disclaimer:** <br>
-> The developers of RustDesk do not condone or support any unethical or illegal use of this software. Misuse, such as unauthorized access, control or invasion of privacy, is strictly against our guidelines. The authors are not responsible for any misuse of the application.
+GIGIdesk is a customized fork of [RustDesk](https://github.com/rustdesk/rustdesk) — the open-source remote desktop tool written in Rust with a Flutter UI. In the GIGI suite it is the remote-control engine: GIGI Connect (the Electron desktop app) bundles, launches, and drives this binary so a caregiver can take remote control of an elder's computer to help them.
 
+This is a fork, not a from-scratch project. Most of the codebase is upstream RustDesk; the GIGI-specific changes are listed below, and the original RustDesk license still applies (see [Upstream & license](#upstream--license)).
 
-Chat with us: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
+- Cargo package: `gigidesk` (`Cargo.toml`), version `1.4.5`, lib still named `librustdesk` for upstream compatibility.
+- Active branch: `gigidesk-customUI` (upstream tracking branch: `master`).
 
-[![RustDesk Server Pro](https://img.shields.io/badge/RustDesk%20Server%20Pro-Advanced%20Features-blue)](https://rustdesk.com/pricing.html)
+## What's customized
 
-Yet another remote desktop solution, written in Rust. Works out of the box with no configuration required. You have full control of your data, with no concerns about security. You can use our rendezvous/relay server, [set up your own](https://rustdesk.com/server), or [write your own rendezvous/relay server](https://github.com/rustdesk/rustdesk-server-demo).
+Grounded in the fork's commit history and config:
 
-![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
+- **Renamed/rebranded to GIGIdesk** — Cargo package `gigidesk`, bundle name `GIGIdesk`, identifier `com.softaims.gigidesk`, GIGI logos in the macOS tray, custom Windows resource metadata (`Cargo.toml`, `src/tray.rs`, `res/`).
+- **Self-hosted rendezvous/relay server (the "EIP" server)** — points at a private GIGI-operated RustDesk server instead of the public RustDesk infrastructure. `get_relay_server()` in `src/rendezvous_mediator.rs` was changed to always use the configured server. See [Configuration](#configuration). (commits: "Rustdesk selfhosting configuration", "Configured custom server with EIP")
+- **Vendored `hbb_common` into the repo** — the upstream git submodule was removed and the library is now committed directly under `libs/hbb_common/` (commit: "Vendor hbb_common into repo (remove submodule)"), so clones don't need `--recurse-submodules`.
+- **GIGI build tooling** — added `build-gigidesk.sh` (macOS Intel/ARM64) and `build-gigidesk-windows.ps1`, plus fixes for build paths and Windows paths (commits: "fixed build path and build issues", "Windows path", "changed route of gigidesk outputs"). The mac build script writes the finished `.app` straight into the GIGI Connect desktop repo's `bin/`.
+- **Custom UI / branding work** — GIGI icons, mac tray assets, mac setup, and permanent-password automation for the elder side (commits: "mac icons and setup", "macos setup", "mac builds and permanent password automation").
 
-RustDesk welcomes contribution from everyone. See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for help getting started.
+Everything else (protocol, codecs, screen capture, input simulation, Flutter UI scaffolding) is upstream RustDesk.
 
-[**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
+## How it fits into GIGI
 
-[**BINARY DOWNLOAD**](https://github.com/rustdesk/rustdesk/releases)
+- **GIGI Connect (`apps/desktop`)** builds GIGIdesk and bundles the resulting binary under its `bin/` directory. Its `make:intel` / `make:arm64` scripts select the GIGIdesk build via a `RUSTDESK_ARCH` switch (`x64` / `arm64`) and package it into the signed Electron app.
+- On the **elder's** machine, GIGI Connect runs GIGIdesk in service mode (`gigidesk --server`) and auto-provisions a RustDesk ID + permanent password.
+- When a **caregiver** starts a remote session, GIGI Connect launches the bundled GIGIdesk with the elder's credentials via CLI args (roughly `gigidesk --connect <id> <password> --password <password> --relay`) — the session goes through the self-hosted relay.
+- The GIGI **backend (`apps/backend`)** records these sessions: `CallSession.callType = REMOTE_DESKTOP` (`apps/backend/prisma/schema.prisma`).
 
-[**NIGHTLY BUILD**](https://github.com/rustdesk/rustdesk/releases/tag/nightly)
+GIGIdesk does not handle GIGI's own signaling — it is the remote-control transport, orchestrated by GIGI Connect.
 
-[<img src="https://f-droid.org/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/com.carriez.flutter_hbb)
-[<img src="https://flathub.org/api/badge?svg&locale=en"
-    alt="Get it on Flathub"
-    height="80">](https://flathub.org/apps/com.rustdesk.RustDesk)
+## Tech stack
 
-## Dependencies
+- **Rust** core (edition 2021, rust-version 1.75) — protocol, services, platform integration.
+- **Flutter** UI under `flutter/` (the legacy Sciter UI in `src/ui/` is deprecated upstream).
+- Vendored upstream libs under `libs/`: `hbb_common` (codec/config/network/protobuf), `scrap` (screen capture), `enigo` (input simulation), `clipboard`, `virtual_display`, `remote_printer`.
+- C/C++ deps via vcpkg: `libvpx`, `libyuv`, `opus`, `aom`.
+- **Self-hosted RustDesk rendezvous/relay server** (no dependency on public RustDesk servers).
 
-Desktop versions use Flutter or Sciter (deprecated) for GUI, this tutorial is for Sciter only, since it is easier and more friendly to start. Check out our [CI](https://github.com/rustdesk/rustdesk/blob/master/.github/workflows/flutter-build.yml) for building Flutter version.
+## Building
 
-Please download Sciter dynamic library yourself.
+GIGIdesk uses the standard RustDesk build pipeline. For the full cross-platform build matrix and dependency setup, follow the upstream docs:
 
-[Windows](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.win/x64/sciter.dll) |
-[Linux](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so) |
-[macOS](https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.osx/libsciter.dylib)
+- RustDesk build docs: https://rustdesk.com/docs/en/dev/build/
+- Upstream build script: `build.py` (kept from upstream).
 
-## Raw Steps to build
+**Prerequisites** (see upstream for full detail):
 
-- Prepare your Rust development env and C++ build env
+- Rust toolchain (>= 1.75) and the Flutter SDK.
+- vcpkg with `VCPKG_ROOT` set; install `libvpx`, `libyuv`, `opus`, `aom`.
+- Platform deps (per upstream): Windows needs extra DLLs + virtual display drivers; macOS needs signing/notarization; Linux needs the listed system libraries.
 
-- Install [vcpkg](https://github.com/microsoft/vcpkg), and set `VCPKG_ROOT` env variable correctly
+**GIGI-specific entry points:**
 
-  - Windows: vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-  - Linux/macOS: vcpkg install libvpx libyuv opus aom
+- `./build-gigidesk.sh intel | arm64 | all` — builds the macOS `.app` and drops it into the GIGI Connect desktop repo's `bin/` (`OUTPUT_DIR=../desktop/bin`). See `BUILDSCRIPT_GUIDE.md`.
+- `build-gigidesk-windows.ps1` — builds the Windows x64 release.
+- The bundled macOS distributables are ultimately produced by **GIGI Connect's** `npm run make:intel` / `npm run make:arm64`, which package the GIGIdesk build (selected by `RUSTDESK_ARCH`) into the signed Electron app.
 
-- run `cargo run`
+Quick local check (engine only): `python3 build.py --flutter` (desktop) or `cargo build --release`. See `CLAUDE.md` and `GUIDE.md` for more.
 
-## [Build](https://rustdesk.com/docs/en/dev/build/)
+## Configuration
 
-## How to Build on Linux
+The self-hosted GIGI rendezvous/relay server (the "EIP" server) and its public key are compiled into the binary as constants in:
 
-### Ubuntu 18 (Debian 10)
+- **`libs/hbb_common/src/config.rs`** — `RENDEZVOUS_SERVERS` (the GIGI relay/rendezvous host) and `RS_PUB_KEY` (the server public key).
+- **`src/rendezvous_mediator.rs`** — `get_relay_server()` forces use of the configured server rather than falling back to a server-provided or public address.
 
-```sh
-sudo apt install -y zip g++ gcc git curl wget nasm yasm libgtk-3-dev clang libxcb-randr0-dev libxdo-dev \
-        libxfixes-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev cmake make \
-        libclang-dev ninja-build libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libpam0g-dev
-```
+The actual host/IP and key are intentionally **not reproduced here** — read them from the files above. Do not commit production secrets to this README or anywhere public. Per-install overrides (custom rendezvous/relay server) are also supported through the standard RustDesk options handled in `config.rs`.
 
-### openSUSE Tumbleweed
+## Part of the GIGI suite
 
-```sh
-sudo zypper install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libXfixes-devel cmake alsa-lib-devel gstreamer-devel gstreamer-plugins-base-devel xdotool-devel pam-devel
-```
+GIGI is an elder-care remote-assistance and communication platform. The suite is five independent git repos under the `gigi-root/` workspace meta-repo — each app keeps its own `.git`, and `apps/` is gitignored by the meta-repo (these are **not** submodules).
 
-### Fedora 28 (CentOS 8)
+- `apps/backend` — GIGI backend: NestJS + Prisma + PostgreSQL API and Socket.io signaling.
+- `apps/desktop` — GIGI Connect: Electron desktop app for elders and caregivers; launches this engine for remote control.
+- `apps/customdesk` — **GIGIdesk (this repo)**: the customized RustDesk remote-desktop engine.
+- `apps/mobile` — GIGI SQUAD: Expo React Native mobile companion.
+- `apps/landing` — gigi-landing: React + TypeScript + Vite landing and legal pages.
 
-```sh
-sudo yum -y install gcc-c++ git curl wget nasm yasm gcc gtk3-devel clang libxcb-devel libxdo-devel libXfixes-devel pulseaudio-libs-devel cmake alsa-lib-devel gstreamer1-devel gstreamer1-plugins-base-devel pam-devel
-```
+## Upstream & license
 
-### Arch (Manjaro)
+GIGIdesk is a **fork of RustDesk**: https://github.com/rustdesk/rustdesk — full credit to the RustDesk project and its contributors for the upstream remote-desktop engine, protocol, and Flutter UI that this fork builds on.
 
-```sh
-sudo pacman -Syu --needed unzip git cmake gcc curl wget yasm nasm zip make pkg-config clang gtk3 xdotool libxcb libxfixes alsa-lib pipewire
-```
-
-### Install vcpkg
-
-```sh
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-git checkout 2023.04.15
-cd ..
-vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=$HOME/vcpkg
-vcpkg/vcpkg install libvpx libyuv opus aom
-```
-
-### Fix libvpx (For Fedora)
-
-```sh
-cd vcpkg/buildtrees/libvpx/src
-cd *
-./configure
-sed -i 's/CFLAGS+=-I/CFLAGS+=-fPIC -I/g' Makefile
-sed -i 's/CXXFLAGS+=-I/CXXFLAGS+=-fPIC -I/g' Makefile
-make
-cp libvpx.a $HOME/vcpkg/installed/x64-linux/lib/
-cd
-```
-
-### Build
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-git clone --recurse-submodules https://github.com/rustdesk/rustdesk
-cd rustdesk
-mkdir -p target/debug
-wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
-mv libsciter-gtk.so target/debug
-VCPKG_ROOT=$HOME/vcpkg cargo run
-```
-
-## How to build with Docker
-
-Begin by cloning the repository and building the Docker container:
-
-```sh
-git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-git submodule update --init --recursive
-docker build -t "rustdesk-builder" .
-```
-
-Then, each time you need to build the application, run the following command:
-
-```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
-```
-
-Note that the first build may take longer before dependencies are cached, subsequent builds will be faster. Additionally, if you need to specify different arguments to the build command, you may do so at the end of the command in the `<OPTIONAL-ARGS>` position. For instance, if you wanted to build an optimized release version, you would run the command above followed by `--release`. The resulting executable will be available in the target folder on your system, and can be run with:
-
-```sh
-target/debug/rustdesk
-```
-
-Or, if you're running a release executable:
-
-```sh
-target/release/rustdesk
-```
-
-Please ensure that you run these commands from the root of the RustDesk repository, or the application may not find the required resources. Also note that other cargo subcommands such as `install` or `run` are not currently supported via this method as they would install or run the program inside the container instead of the host.
-
-## File Structure
-
-- **[libs/hbb_common](https://github.com/rustdesk/rustdesk/tree/master/libs/hbb_common)**: video codec, config, tcp/udp wrapper, protobuf, fs functions for file transfer, and some other utility functions
-- **[libs/scrap](https://github.com/rustdesk/rustdesk/tree/master/libs/scrap)**: screen capture
-- **[libs/enigo](https://github.com/rustdesk/rustdesk/tree/master/libs/enigo)**: platform specific keyboard/mouse control
-- **[libs/clipboard](https://github.com/rustdesk/rustdesk/tree/master/libs/clipboard)**: file copy and paste implementation for Windows, Linux, macOS.
-- **[src/ui](https://github.com/rustdesk/rustdesk/tree/master/src/ui)**: obsolete Sciter UI (deprecated)
-- **[src/server](https://github.com/rustdesk/rustdesk/tree/master/src/server)**: audio/clipboard/input/video services, and network connections
-- **[src/client.rs](https://github.com/rustdesk/rustdesk/tree/master/src/client.rs)**: start a peer connection
-- **[src/rendezvous_mediator.rs](https://github.com/rustdesk/rustdesk/tree/master/src/rendezvous_mediator.rs)**: Communicate with [rustdesk-server](https://github.com/rustdesk/rustdesk-server), wait for remote direct (TCP hole punching) or relayed connection
-- **[src/platform](https://github.com/rustdesk/rustdesk/tree/master/src/platform)**: platform specific code
-- **[flutter](https://github.com/rustdesk/rustdesk/tree/master/flutter)**: Flutter code for desktop and mobile
-- **[flutter/web/js](https://github.com/rustdesk/rustdesk/tree/master/flutter/web/v1/js)**: JavaScript for Flutter web client
-
-## Screenshots
-
-![Connection Manager](https://github.com/rustdesk/rustdesk/assets/28412477/db82d4e7-c4bc-4823-8e6f-6af7eadf7651)
-
-![Connected to a Windows PC](https://github.com/rustdesk/rustdesk/assets/28412477/9baa91e9-3362-4d06-aa1a-7518edcbd7ea)
-
-![File Transfer](https://github.com/rustdesk/rustdesk/assets/28412477/39511ad3-aa9a-4f8c-8947-1cce286a46ad)
-
-![TCP Tunneling](https://github.com/rustdesk/rustdesk/assets/28412477/78e8708f-e87e-4570-8373-1360033ea6c5)
-
+This repository inherits RustDesk's license: **GNU Affero General Public License v3.0 (AGPL-3.0)** — see the [`LICENCE`](./LICENCE) file in this repo. As an AGPL-3.0 work, the same terms (including the network-use source-availability obligations) apply to GIGIdesk and any distribution or networked deployment of it.
