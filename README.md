@@ -36,6 +36,46 @@ GIGIdesk does not handle GIGI's own signaling — it is the remote-control trans
 - C/C++ deps via vcpkg: `libvpx`, `libyuv`, `opus`, `aom`.
 - **Self-hosted RustDesk rendezvous/relay server** (no dependency on public RustDesk servers).
 
+## Project structure
+
+```
+apps/customdesk/
+├── src/                          Rust core
+│   ├── server/                   audio / clipboard / input / video services + connections
+│   ├── client.rs                 peer connection handling
+│   ├── rendezvous_mediator.rs    relay/rendezvous logic (forces the GIGI self-hosted server)
+│   ├── platform/                 platform-specific code (incl. privilege scripts)
+│   ├── tray.rs                   system tray (GIGI branding)
+│   └── ui/                       legacy Sciter UI (deprecated upstream)
+├── flutter/                      Flutter UI for desktop + mobile (the modern UI)
+├── libs/                         vendored core libraries
+│   ├── hbb_common/               codec / config / network / protobuf — config.rs holds server constants
+│   ├── scrap/                    screen capture
+│   ├── enigo/                    keyboard / mouse input simulation
+│   └── clipboard/                cross-platform clipboard
+├── res/                          icons / branding / platform resources
+├── build.py                      upstream RustDesk build orchestrator
+├── build-gigidesk.sh             GIGI macOS build → outputs into ../desktop/bin/
+├── build-gigidesk-windows.ps1    GIGI Windows build
+├── Cargo.toml                    Rust package (`gigidesk`)
+└── BUILDSCRIPT_GUIDE.md / GUIDE.md   build notes
+```
+
+`target/`, `flutter/build/`, and `builds/` are build output — ignore them.
+
+## Getting started
+
+```bash
+git clone <this repo> apps/customdesk   # hbb_common is vendored — no --recurse-submodules needed
+cd apps/customdesk
+```
+
+Install the toolchain — **Rust ≥ 1.75**, the **Flutter SDK**, and **vcpkg** with `VCPKG_ROOT` set (then install `libvpx`, `libyuv`, `opus`, `aom`). Full prerequisites and the cross-platform matrix are in [Building](#building). First local build (engine + Flutter UI):
+
+```bash
+python3 build.py --flutter --release    # or: cargo build --release  (engine only)
+```
+
 ## Building
 
 GIGIdesk uses the standard RustDesk build pipeline. For the full cross-platform build matrix and dependency setup, follow the upstream docs:
@@ -57,6 +97,20 @@ GIGIdesk uses the standard RustDesk build pipeline. For the full cross-platform 
 
 Quick local check (engine only): `python3 build.py --flutter` (desktop) or `cargo build --release`. See `CLAUDE.md` and `GUIDE.md` for more.
 
+## Deployment
+
+GIGIdesk is **not distributed on its own** — it is built and bundled inside GIGI Connect, which is the installer that ships to end users:
+
+```bash
+# 1) build the engine and drop the .app into the desktop repo's bin/
+./build-gigidesk.sh all          # macOS Intel + ARM64  (OUTPUT_DIR=../desktop/bin)
+
+# 2) package GIGI Connect with the bundled engine (in apps/desktop)
+cd ../desktop && npm run make:arm64   # or make:intel
+```
+
+The self-hosted relay/rendezvous server GIGIdesk connects to is operated and deployed separately from this binary.
+
 ## Configuration
 
 The self-hosted GIGI rendezvous/relay server (the "EIP" server) and its public key are compiled into the binary as constants in:
@@ -65,6 +119,8 @@ The self-hosted GIGI rendezvous/relay server (the "EIP" server) and its public k
 - **`src/rendezvous_mediator.rs`** — `get_relay_server()` forces use of the configured server rather than falling back to a server-provided or public address.
 
 The actual host/IP and key are intentionally **not reproduced here** — read them from the files above. Do not commit production secrets to this README or anywhere public. Per-install overrides (custom rendezvous/relay server) are also supported through the standard RustDesk options handled in `config.rs`.
+
+There is **no `.env` file** — GIGIdesk takes no runtime environment variables. Server settings are the compile-time constants above plus the standard RustDesk runtime options. The only environment variable involved is the build-time **`VCPKG_ROOT`** (see [Building](#building)).
 
 ## Part of the GIGI suite
 
