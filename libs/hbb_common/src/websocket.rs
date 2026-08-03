@@ -342,6 +342,20 @@ pub fn check_ws(endpoint: &str) -> String {
         return endpoint.to_string();
     }
 
+    // GIGI: scope websocket use to domain-based rendezvous servers only.
+    // IP-literal servers (the compiled RENDEZVOUS_SERVERS IP entry) keep
+    // using plain TCP. Live testing against the real hbbs box showed its
+    // websocket listener resets the connection for a bare ws://<ip>:port
+    // request (no path — all an IP-literal ever produces, see the is_domain
+    // branch below) with "Connection reset without closing handshake",
+    // even though the identical listener completes a wss://domain/ws/id
+    // handshake correctly through nginx. Bypassing conversion for IP
+    // literals keeps the always-worked-before raw TCP path for the primary
+    // server while still getting the wss://443 fallback for our own domain.
+    if crate::is_ip_str(endpoint) {
+        return endpoint.to_string();
+    }
+
     let Some((endpoint_host, endpoint_port)) = split_host_port(endpoint) else {
         debug_assert!(false, "endpoint doesn't have port");
         return endpoint.to_string();
@@ -405,34 +419,45 @@ mod tests {
     fn test_check_ws() {
         // enable websocket
         Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_string(), "Y".to_string());
-
-        // not set custom-rendezvous-server
         Config::set_option("custom-rendezvous-server".to_string(), "".to_string());
         Config::set_option("relay-server".to_string(), "".to_string());
         Config::set_option("api-server".to_string(), "".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
+
+        // GIGI: IP-literal endpoints always pass through unchanged, regardless
+        // of allow-websocket/relay-server/api-server. See the comment on the
+        // is_ip_str early-return in check_ws() for why (hbbs resets a bare
+        // ws://<ip>:port connection with no path in practice, even though
+        // websocket itself works fine for domain-based servers through
+        // nginx). This must hold under every relay-server/custom-rendezvous-
+        // server variation, not just the default one.
+        for ipv4 in ["127.0.0.1:21115", "127.0.0.1:21116", "127.0.0.1:21117"] {
+            assert_eq!(check_ws(ipv4), ipv4);
+        }
+        for ipv6 in [
+            "[0:0:0:0:0:0:0:1]:21115",
+            "[0:0:0:0:0:0:0:1]:21116",
+            "[0:0:0:0:0:0:0:1]:21117",
+        ] {
+            assert_eq!(check_ws(ipv6), ipv6);
+        }
+        Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
+        Config::set_option(
+            "custom-rendezvous-server".to_string(),
+            "127.0.0.1:23456".to_string(),
+        );
+        for ip in ["127.0.0.1:21115", "127.0.0.1:23456", "127.0.0.1:34567"] {
+            assert_eq!(check_ws(ip), ip);
+        }
+        Config::set_option("relay-server".to_string(), "".to_string());
+        Config::set_option("custom-rendezvous-server".to_string(), "".to_string());
+
+        // Domain-based endpoints: ws by default, wss once api-server is https.
         assert_eq!(check_ws("rustdesk.com:21115"), "ws://rustdesk.com/ws/id");
         assert_eq!(check_ws("rustdesk.com:21116"), "ws://rustdesk.com/ws/id");
         assert_eq!(check_ws("rustdesk.com:21117"), "ws://rustdesk.com/ws/relay");
-        // set relay-server without port
-        Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
         Config::set_option(
             "api-server".to_string(),
             "https://api.rustdesk.com".to_string(),
-        );
-        assert_eq!(
-            check_ws("[0:0:0:0:0:0:0:1]:21115"),
-            "ws://[0:0:0:0:0:0:0:1]:21118"
-        );
-        assert_eq!(
-            check_ws("[0:0:0:0:0:0:0:1]:21116"),
-            "ws://[0:0:0:0:0:0:0:1]:21118"
-        );
-        assert_eq!(
-            check_ws("[0:0:0:0:0:0:0:1]:21117"),
-            "ws://[0:0:0:0:0:0:0:1]:21119"
         );
         assert_eq!(check_ws("rustdesk.com:21115"), "wss://rustdesk.com/ws/id");
         assert_eq!(check_ws("rustdesk.com:21116"), "wss://rustdesk.com/ws/id");
@@ -440,11 +465,6 @@ mod tests {
             check_ws("rustdesk.com:21117"),
             "wss://rustdesk.com/ws/relay"
         );
-        // set relay-server with default port
-        Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
         // set relay-server with custom port
         Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
         assert_eq!(check_ws("rustdesk.com:21115"), "wss://rustdesk.com/ws/id");
@@ -453,95 +473,21 @@ mod tests {
             check_ws("rustdesk.com:34567"),
             "wss://rustdesk.com/ws/relay"
         );
-
-        // set custom-rendezvous-server without port
-        Config::set_option(
-            "custom-rendezvous-server".to_string(),
-            "127.0.0.1".to_string(),
-        );
         Config::set_option("relay-server".to_string(), "".to_string());
-        Config::set_option("api-server".to_string(), "".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server without port
-        Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with default port
-        Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with custom port
-        Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
 
-        // set custom-rendezvous-server without default port
-        Config::set_option(
-            "custom-rendezvous-server".to_string(),
-            "127.0.0.1".to_string(),
-        );
-        Config::set_option("relay-server".to_string(), "".to_string());
+        // GIGI's own domain always gets wss, independent of api-server.
         Config::set_option("api-server".to_string(), "".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server without port
-        Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with default port
-        Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with custom port
-        Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
-        assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
-
-        // set custom-rendezvous-server with custom port
-        //
-        // NOTE: the "custom-rendezvous-server" option set below is NOT
-        // actually consulted by check_ws()'s port arithmetic — it calls
-        // Config::get_rendezvous_server(), which always reads the compiled
-        // RENDEZVOUS_SERVERS[0] constant instead (config.rs:790-799). So
-        // rendezvous_port here is always the default (21116), not 23456,
-        // and every input below falls through the generic dst_port+2
-        // fallback branch rather than the rendezvous_port-1 "online"/NAT
-        // branch a genuinely-honored custom server would hit. This is
-        // intentional for this fork (a locked-down branded client
-        // shouldn't let an arbitrary Settings value redirect where it
-        // connects) — the expected values below match that real behavior.
-        Config::set_option(
-            "custom-rendezvous-server".to_string(),
-            "127.0.0.1:23456".to_string(),
+        assert_eq!(
+            check_ws("rustdesk.gigisquad.com:21115"),
+            "wss://rustdesk.gigisquad.com/ws/id"
         );
-        Config::set_option("relay-server".to_string(), "".to_string());
-        Config::set_option("api-server".to_string(), "".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
-        assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
-        assert_eq!(check_ws("127.0.0.1:23457"), "ws://127.0.0.1:23459");
-        // set relay-server without port
-        Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
-        assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with default port
-        Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
-        assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
-        assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
-        // set relay-server with custom port
-        Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
-        assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
-        assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
+        assert_eq!(
+            check_ws("rustdesk.gigisquad.com:21116"),
+            "wss://rustdesk.gigisquad.com/ws/id"
+        );
+        assert_eq!(
+            check_ws("rustdesk.gigisquad.com:21117"),
+            "wss://rustdesk.gigisquad.com/ws/relay"
+        );
     }
 }
