@@ -62,7 +62,24 @@ lazy_static::lazy_static! {
     static ref KEY_PAIR: Mutex<Option<KeyPair>> = Default::default();
     static ref USER_DEFAULT_CONFIG: RwLock<(UserDefaultConfig, Instant)> = RwLock::new((UserDefaultConfig::load(), Instant::now()));
     pub static ref NEW_STORED_PEER_CONFIG: Mutex<HashSet<String>> = Default::default();
-    pub static ref DEFAULT_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+    // Default for GIGI's websocket-over-443 fallback (see RENDEZVOUS_SERVERS
+    // above): a user can still turn this off via Settings -> Network, this
+    // only changes what a fresh install starts with. Applies to every entry
+    // in RENDEZVOUS_SERVERS, so the IP entry also moves from raw TCP (port
+    // 21116) to websocket (port 21118) — both are already open and served by
+    // the same hbbs process, so this is not a reachability change for the IP
+    // path, only a framing one.
+    //
+    // Deliberately NOT setting a default for `api-server` here: that option
+    // is shared by unrelated features (address-book sync, OIDC login, CLI
+    // device registration — see src/hbbs_http/*.rs) that assume a real API
+    // backend at that URL, which rustdesk.gigisquad.com's nginx proxy does
+    // not serve. wss:// for our specific domain is instead handled directly
+    // in check_ws() (libs/hbb_common/src/websocket.rs), keyed off
+    // GIGI_WS_DOMAIN, without touching api-server's semantics for anyone.
+    pub static ref DEFAULT_SETTINGS: RwLock<HashMap<String, String>> = RwLock::new(HashMap::from([
+        (keys::OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned()),
+    ]));
     pub static ref OVERWRITE_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref DEFAULT_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref OVERWRITE_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
@@ -106,7 +123,13 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RENDEZVOUS_SERVERS: &[&str] = &["35.169.131.85"];
+// Domain entry lets the client fall back to a wss://…/ws/id websocket
+// connection on port 443 (via nginx, see docs/infra) when the raw TCP/UDP
+// ports (21115-21119) are blocked or throttled by a restrictive network —
+// the same 443-fallback pattern TeamViewer/AnyDesk use. The IP entry stays
+// so the deployed fleet doesn't depend on DNS resolving.
+pub const GIGI_WS_DOMAIN: &str = "rustdesk.gigisquad.com";
+pub const RENDEZVOUS_SERVERS: &[&str] = &["35.169.131.85", GIGI_WS_DOMAIN];
 pub const RS_PUB_KEY: &str = "QlgjSZ080Dhanw4brkBKOrN55pd4eqTMjXYSdZ3q+20=";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;

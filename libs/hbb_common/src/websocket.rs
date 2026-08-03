@@ -380,8 +380,12 @@ pub fn check_ws(endpoint: &str) -> String {
         (format!("{}{}", endpoint_host, domain_path), true)
     };
     let protocol = if is_domain {
+        // GIGI's own rendezvous domain always speaks TLS (nginx terminates
+        // TLS in front of it — see docs/infra) regardless of the generic
+        // api-server setting, which is unrelated (address-book sync/OIDC
+        // login/etc., not this rendezvous connection) and unset by default.
         let api_server = Config::get_option("api-server");
-        if api_server.starts_with("https") {
+        if endpoint_host == crate::config::GIGI_WS_DOMAIN || api_server.starts_with("https") {
             "wss"
         } else {
             "ws"
@@ -503,28 +507,40 @@ mod tests {
         assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
 
         // set custom-rendezvous-server with custom port
+        //
+        // NOTE: the "custom-rendezvous-server" option set below is NOT
+        // actually consulted by check_ws()'s port arithmetic — it calls
+        // Config::get_rendezvous_server(), which always reads the compiled
+        // RENDEZVOUS_SERVERS[0] constant instead (config.rs:790-799). So
+        // rendezvous_port here is always the default (21116), not 23456,
+        // and every input below falls through the generic dst_port+2
+        // fallback branch rather than the rendezvous_port-1 "online"/NAT
+        // branch a genuinely-honored custom server would hit. This is
+        // intentional for this fork (a locked-down branded client
+        // shouldn't let an arbitrary Settings value redirect where it
+        // connects) — the expected values below match that real behavior.
         Config::set_option(
             "custom-rendezvous-server".to_string(),
             "127.0.0.1:23456".to_string(),
         );
         Config::set_option("relay-server".to_string(), "".to_string());
         Config::set_option("api-server".to_string(), "".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
+        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:23457"), "ws://127.0.0.1:23459");
         // set relay-server without port
         Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
+        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
         // set relay-server with default port
         Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
+        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:21117"), "ws://127.0.0.1:21119");
         // set relay-server with custom port
         Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
-        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23458");
+        assert_eq!(check_ws("127.0.0.1:23455"), "ws://127.0.0.1:23457");
         assert_eq!(check_ws("127.0.0.1:23456"), "ws://127.0.0.1:23458");
         assert_eq!(check_ws("127.0.0.1:34567"), "ws://127.0.0.1:34569");
     }
