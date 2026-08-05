@@ -26,7 +26,7 @@
 			<key>CFBundleURLIconFile</key>
 			<string></string>
 			<key>CFBundleURLName</key>
-			<string>com.softaims.gigidesk</string>
+			<string>com.onethreshold.gigidesk</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>gigidesk</string>

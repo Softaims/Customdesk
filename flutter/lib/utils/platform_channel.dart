@@ -14,7 +14,7 @@ class RdPlatformChannel {
   static RdPlatformChannel get instance => _windowUtil;
 
   final MethodChannel _hostMethodChannel =
-      MethodChannel("com.softaims.gigidesk/host");
+      MethodChannel("com.onethreshold.gigidesk/host");
 
   /// Bump the position of the mouse cursor, if applicable
   Future<bool> bumpMouse({required int dx, required int dy}) async {

@@ -8,7 +8,7 @@
 PRODUCT_NAME = GIGIdesk
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.softaims.gigidesk
+PRODUCT_BUNDLE_IDENTIFIER = com.onethreshold.gigidesk
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2025 Softaims. All rights reserved.

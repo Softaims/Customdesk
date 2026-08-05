@@ -3,10 +3,10 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.softaims.GiGiDesk_service</string>
+        <string>com.onethreshold.GiGiDesk_service</string>
 
 	<key>AssociatedBundleIdentifiers</key>
-	<string>com.softaims.gigidesk</string>
+	<string>com.onethreshold.gigidesk</string>
     
         <key>KeepAlive</key>
         <true/>
