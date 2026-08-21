@@ -32,6 +32,8 @@ hwcodec = ["scrap/hwcodec"]
 vram = ["scrap/vram"]
 mediacodec = ["scrap/mediacodec"]
 plugin_framework = []
+# Forwards to hbb_common — see that crate's Cargo.toml / config.rs.
+env_production = ["hbb_common/env_production"]
 linux-pkg-config = ["magnum-opus/linux-pkg-config", "scrap/linux-pkg-config"]
 unix-file-copy-paste = [
     "dep:x11-clipboard",

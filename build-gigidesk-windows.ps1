@@ -8,15 +8,26 @@
 
     Compiles Rust (x86_64-pc-windows-msvc), builds Flutter for Windows,
     copies librustdesk.dll and service.exe into the Flutter output, then
-    saves the finished build to desktop/bin/rustdesk-windows/ and Customdesk/builds/.
+    saves the finished build to desktop/bin/rustdesk-windows/ and
+    Customdesk/builds/<Environment>/windows/.
+
+    -Environment picks which RustDesk relay (IP + pubkey, see
+    libs/hbb_common/src/config.rs) gets compiled in — defaults to staging so
+    a bare invocation never accidentally ships pointed at production.
 
 .EXAMPLE
     .\build-gigidesk-windows.ps1
+    .\build-gigidesk-windows.ps1 -Environment production
 
 .NOTES
     Run from the Customdesk\ directory (or anywhere — the script resolves its
     own location automatically).
 #>
+
+param(
+    [ValidateSet('staging', 'production')]
+    [string]$Environment = 'staging'
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -28,7 +39,7 @@ $BuildsDir   = Join-Path $ScriptDir 'builds'
 
 $RustTarget  = 'x86_64-pc-windows-msvc'
 $AppName     = 'GIGIdesk'
-$CargoFeatures = 'flutter'
+$CargoFeatures = if ($Environment -eq 'production') { 'flutter,env_production' } else { 'flutter' }
 
 function Resolve-DesktopBinDir {
     $candidates = @(
@@ -244,29 +255,34 @@ function Save-BuildOutput {
 
     $destName   = 'rustdesk-windows'
 
-    # 1) desktop/bin/rustdesk-windows — embedded into Electron app (npm run dist)
+    # 1) desktop/bin/rustdesk-windows — embedded into Electron app (npm run dist).
+    #    Single active slot — whichever environment you last built is what
+    #    gets packaged.
     $destDesktop = Join-Path $OutputDir $destName
     if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null }
     if (Test-Path $destDesktop) { Remove-Item -Recurse -Force $destDesktop }
     New-Item -ItemType Directory -Path $destDesktop -Force | Out-Null
     Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $destDesktop -Force
     $sizeMB = [math]::Round((Get-ChildItem $destDesktop -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-    Write-Success "$destName -> $OutputDir (${sizeMB} MB)"
+    Write-Success "$destName ($Environment) -> $OutputDir (${sizeMB} MB)"
 
-    # 2) Customdesk/builds  — local backup
-    if (-not (Test-Path $BuildsDir)) { New-Item -ItemType Directory -Path $BuildsDir -Force | Out-Null }
-    $destBuilds = Join-Path $BuildsDir $destName
+    # 2) Customdesk/builds/<Environment>/windows — both environments can
+    #    coexist here at once, unlike desktop/bin's single active slot.
+    $envBuildsDir = Join-Path $BuildsDir (Join-Path $Environment 'windows')
+    if (-not (Test-Path $envBuildsDir)) { New-Item -ItemType Directory -Path $envBuildsDir -Force | Out-Null }
+    $destBuilds = Join-Path $envBuildsDir $destName
     if (Test-Path $destBuilds) { Remove-Item -Recurse -Force $destBuilds }
     New-Item -ItemType Directory -Path $destBuilds -Force | Out-Null
     Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $destBuilds -Force
-    Write-Success "$destName -> $BuildsDir (backup)"
+    Write-Success "$destName -> builds/$Environment/windows/ (backup)"
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 function Main {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
-    Write-Banner "Building $AppName for Windows x64"
+    Write-Banner "Building $AppName for Windows x64 ($Environment)"
+    Write-Info "Environment: $Environment (cargo features: $CargoFeatures)"
 
     Invoke-CheckPrerequisites
 
@@ -292,7 +308,7 @@ function Main {
     $outFolder = Join-Path $OutputDir 'rustdesk-windows'
     if (Test-Path $outFolder) {
         Write-Host "Desktop package source: $outFolder" -ForegroundColor DarkCyan
-        Write-Host "Backup output: $(Join-Path $BuildsDir 'rustdesk-windows')" -ForegroundColor DarkCyan
+        Write-Host "Backup output: $(Join-Path $BuildsDir (Join-Path $Environment (Join-Path 'windows' 'rustdesk-windows')))" -ForegroundColor DarkCyan
         Get-ChildItem $outFolder -File | Select-Object Name, @{N='Size';E={ "$([math]::Round($_.Length/1KB,1)) KB" }} |
             Format-Table -AutoSize
     }

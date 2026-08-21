@@ -3,9 +3,15 @@
 # build-gigidesk.sh — Build GIGIdesk .app for Intel and/or ARM64
 #
 # Usage:
-#   ./build-gigidesk.sh intel        # Build x86_64 only
-#   ./build-gigidesk.sh arm64        # Build arm64 only
-#   ./build-gigidesk.sh all          # Build both (Intel first, then ARM64)
+#   ./build-gigidesk.sh intel [staging|production]   # Build x86_64 only
+#   ./build-gigidesk.sh arm64 [staging|production]   # Build arm64 only
+#   ./build-gigidesk.sh all   [staging|production]   # Build both (Intel first, then ARM64)
+#
+# The environment picks which RustDesk relay (IP + pubkey, see
+# libs/hbb_common/src/config.rs) gets compiled in — defaults to staging so a
+# bare `./build-gigidesk.sh all` never accidentally ships pointed at
+# production. Output is kept separate per environment under builds/, see
+# save_app() below.
 #
 set -euo pipefail
 
@@ -21,7 +27,8 @@ VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg}"
 export MACOSX_DEPLOYMENT_TARGET VCPKG_ROOT
 
 APP_NAME="GIGIdesk"
-CARGO_FEATURES="flutter"
+ENVIRONMENT="staging"          # overridden in main() from $2
+CARGO_FEATURES="flutter"       # env_production appended in main() when selected
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -104,7 +111,7 @@ EOF
 # ─── Build Rust ──────────────────────────────────────────────────────────────
 build_rust() {
   local arch="$1"
-  step "Building Rust ($arch)"
+  step "Building Rust ($arch, $ENVIRONMENT)"
 
   cd "$SCRIPT_DIR"
 
@@ -240,20 +247,23 @@ save_app() {
 
   local src="$FLUTTER_DIR/build/macos/Build/Products/Release/$APP_NAME.app"
 
-  # 1) Save to desktop/bin (Electron Forge make uses this path)
+  # 1) Save to desktop/bin (Electron Forge make uses this path) — single active
+  #    slot, whichever environment you last built is what gets packaged.
   local dest_desktop="$OUTPUT_DIR/$APP_NAME-$label.app"
   rm -rf "$dest_desktop"
   cp -R "$src" "$dest_desktop"
   local size
   size=$(du -sh "$dest_desktop" | cut -f1)
-  success "$APP_NAME-$label.app → desktop/bin/ ($size)"
+  success "$APP_NAME-$label.app ($ENVIRONMENT) → desktop/bin/ ($size)"
 
-  # 2) Save to Customdesk/builds (secure backup in this repo)
-  mkdir -p "$BUILDS_DIR"
-  local dest_builds="$BUILDS_DIR/$APP_NAME-$label.app"
+  # 2) Save to Customdesk/builds/<environment>/mac/ — both environments can
+  #    coexist here at once, unlike desktop/bin's single active slot.
+  local env_builds_dir="$BUILDS_DIR/$ENVIRONMENT/mac"
+  mkdir -p "$env_builds_dir"
+  local dest_builds="$env_builds_dir/$APP_NAME-$label.app"
   rm -rf "$dest_builds"
   cp -R "$src" "$dest_builds"
-  success "$APP_NAME-$label.app → builds/ (backup)"
+  success "$APP_NAME-$label.app → builds/$ENVIRONMENT/mac/ (backup)"
 }
 
 # ─── Full build pipeline for one architecture ───────────────────────────────
@@ -279,15 +289,34 @@ build_arch() {
 # ─── Main ────────────────────────────────────────────────────────────────────
 main() {
   local target="${1:-}"
+  local env_arg="${2:-staging}"
 
   if [[ -z "$target" ]]; then
-    echo "Usage: $0 <intel|arm64|all>"
+    echo "Usage: $0 <intel|arm64|all> [staging|production]"
     echo ""
     echo "  intel   Build x86_64 (Intel Mac) .app"
     echo "  arm64   Build aarch64 (Apple Silicon) .app"
     echo "  all     Build both architectures"
+    echo ""
+    echo "  staging (default)  RustDesk relay: 35.169.131.85"
+    echo "  production         RustDesk relay: 32.195.186.150 (separate keypair)"
     exit 1
   fi
+
+  case "$env_arg" in
+    staging)
+      ENVIRONMENT="staging"
+      ;;
+    production|prod)
+      ENVIRONMENT="production"
+      CARGO_FEATURES="flutter,env_production"
+      ;;
+    *)
+      error "Unknown environment: $env_arg (expected staging or production)"
+      exit 1
+      ;;
+  esac
+  info "Environment: $ENVIRONMENT (cargo features: $CARGO_FEATURES)"
 
   local total_start=$SECONDS
 

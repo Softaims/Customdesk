@@ -9,6 +9,9 @@ edition = "2018"
 [features]
 default = []
 webrtc = ["dep:webrtc"]
+# Compiles the RustDesk relay identity (RENDEZVOUS_SERVERS/RS_PUB_KEY in config.rs)
+# for GIGI's production relay instead of staging. See config.rs for details.
+env_production = []
 
 [dependencies]
 # new flexi_logger failed on rustc 1.75
