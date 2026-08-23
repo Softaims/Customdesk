@@ -91,25 +91,29 @@ GIGIdesk uses the standard RustDesk build pipeline. For the full cross-platform 
 
 **GIGI-specific entry points:**
 
-- `./build-gigidesk.sh intel | arm64 | all` — builds the macOS `.app` and drops it into the GIGI Connect desktop repo's `bin/` (`OUTPUT_DIR=../desktop/bin`). See `BUILDSCRIPT_GUIDE.md`.
-- `build-gigidesk-windows.ps1` — builds the Windows x64 release.
-- The bundled macOS distributables are ultimately produced by **GIGI Connect's** `npm run make:intel` / `npm run make:arm64`, which package the GIGIdesk build (selected by `RUSTDESK_ARCH`) into the signed Electron app.
+- `./build-gigidesk.sh intel | arm64 | all [staging|production]` — builds the macOS `.app` and drops it into the GIGI Connect desktop repo's `bin/` (`OUTPUT_DIR=../desktop/bin`). The environment arg (default `staging`) picks which relay server gets compiled in — see [Configuration](#configuration) and `BUILDSCRIPT_GUIDE.md`.
+- `build-gigidesk-windows.ps1 [-Environment staging|production]` — builds the Windows x64 release, same environment selection.
+- The bundled macOS distributables are ultimately produced by **GIGI Connect's** `npm run make:intel` / `npm run make:arm64` (staging) or `npm run make:production:intel` / `npm run make:production:arm64` (production), which package the GIGIdesk build (selected by `RUSTDESK_ARCH`) into the signed Electron app. **The GIGIdesk environment and the GIGI Connect environment must match** — see `../desktop/README.md`'s Environments section.
 
 Quick local check (engine only): `python3 build.py --flutter` (desktop) or `cargo build --release`. See `CLAUDE.md` and `GUIDE.md` for more.
 
 ## Deployment
 
-GIGIdesk is **not distributed on its own** — it is built and bundled inside GIGI Connect, which is the installer that ships to end users:
+GIGIdesk is **not distributed on its own** — it is built and bundled inside GIGI Connect, which is the installer that ships to end users. Build both halves for the **same environment** — a production GIGI Connect build embedding a staging-relay GIGIdesk (or vice versa) will silently split-brain (backend/Jitsi on one environment, remote-control relay on another):
 
 ```bash
+# Staging
 # 1) build the engine and drop the .app into the desktop repo's bin/
-./build-gigidesk.sh all          # macOS Intel + ARM64  (OUTPUT_DIR=../desktop/bin)
-
+./build-gigidesk.sh all staging       # macOS Intel + ARM64  (OUTPUT_DIR=../desktop/bin)
 # 2) package GIGI Connect with the bundled engine (in apps/desktop)
 cd ../desktop && npm run make:arm64   # or make:intel
+
+# Production
+./build-gigidesk.sh all production
+cd ../desktop && npm run make:production:arm64   # or make:production:intel
 ```
 
-The self-hosted relay/rendezvous server GIGIdesk connects to is operated and deployed separately from this binary.
+The self-hosted relay/rendezvous server GIGIdesk connects to is operated and deployed separately from this binary — see `docs/infra/production/rustdesk-blueprint.md` (production) and `docs/rustdesk/README.md` (staging) in the meta-repo.
 
 ## Configuration
 
@@ -118,9 +122,18 @@ The self-hosted GIGI rendezvous/relay server (the "EIP" server) and its public k
 - **`libs/hbb_common/src/config.rs`** — `RENDEZVOUS_SERVERS` (the GIGI relay/rendezvous host) and `RS_PUB_KEY` (the server public key).
 - **`src/rendezvous_mediator.rs`** — `get_relay_server()` forces use of the configured server rather than falling back to a server-provided or public address.
 
-The actual host/IP and key are intentionally **not reproduced here** — read them from the files above. Do not commit production secrets to this README or anywhere public. Per-install overrides (custom rendezvous/relay server) are also supported through the standard RustDesk options handled in `config.rs`.
+**Two environments, picked at compile time via a Cargo feature** — staging is the default (a plain `cargo build` never accidentally ships pointed at production):
 
-There is **no `.env` file** — GIGIdesk takes no runtime environment variables. Server settings are the compile-time constants above plus the standard RustDesk runtime options. The only environment variable involved is the build-time **`VCPKG_ROOT`** (see [Building](#building)).
+```bash
+cargo build --release --features flutter                    # staging (default)
+cargo build --release --features flutter,env_production      # production
+```
+
+`config.rs` `#[cfg(feature = "env_production")]`-gates both constants to their production values; the `env_production` feature is defined in `libs/hbb_common/Cargo.toml` and forwarded through the top-level `Cargo.toml`. `build-gigidesk.sh`/`build-gigidesk-windows.ps1`'s environment argument sets this feature for you — most people should use those scripts rather than calling `cargo build` directly. Verified by inspecting the actual compiled artifact (not just that it builds) — each feature set embeds its own server address and no other.
+
+The actual host/IP and key are intentionally **not reproduced here** — read them from `config.rs`. Do not commit production secrets to this README or anywhere public. Per-install overrides (custom rendezvous/relay server) are also supported through the standard RustDesk options handled in `config.rs`.
+
+There is **no `.env` file** — GIGIdesk takes no *runtime* environment variables. Server identity is the compile-time constants above (environment-selected via the `env_production` feature), plus the standard RustDesk runtime options. The other environment variable involved is the build-time **`VCPKG_ROOT`** (see [Building](#building)).
 
 ## Part of the GIGI suite
 
