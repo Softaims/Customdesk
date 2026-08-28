@@ -24,6 +24,9 @@ FLUTTER_DIR="$SCRIPT_DIR/flutter"
 XCCONFIG="$FLUTTER_DIR/macos/Flutter/CustomArch.xcconfig"
 OUTPUT_DIR="$SCRIPT_DIR/../desktop/bin"
 ARCHIVE_DIR="$OUTPUT_DIR/gigidesk-archive"
+# Local copy kept in this repo too, same env+arch namespacing — a backup
+# independent of the desktop repo, not read by any build step.
+LOCAL_BACKUP_DIR="$SCRIPT_DIR/builds"
 
 MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.14}"
 VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg}"
@@ -262,6 +265,15 @@ save_app() {
   size=$(du -sh "$dest" | cut -f1)
   success "$APP_NAME-$ENVIRONMENT-$label.app → desktop/bin/gigidesk-archive/ ($size)"
   info "Picked up automatically by desktop's '$ENVIRONMENT' make/build commands."
+
+  # Second copy, kept in this repo — same env+arch namespacing, so it never
+  # overwrites either. Not read by anything; just a local backup.
+  local backup_dir="$LOCAL_BACKUP_DIR/$ENVIRONMENT/mac"
+  mkdir -p "$backup_dir"
+  local backup_dest="$backup_dir/$APP_NAME-$label.app"
+  rm -rf "$backup_dest"
+  cp -R "$src" "$backup_dest"
+  success "$APP_NAME-$label.app → builds/$ENVIRONMENT/mac/ (backup)"
 }
 
 # ─── Full build pipeline for one architecture ───────────────────────────────

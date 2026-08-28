@@ -60,6 +60,9 @@ function Resolve-DesktopBinDir {
 
 $OutputDir  = Resolve-DesktopBinDir
 $ArchiveDir = Join-Path $OutputDir "rustdesk-windows-$Environment"
+# Local copy kept in this repo too, same environment namespacing — a backup
+# independent of the desktop repo, not read by any build step.
+$LocalBackupDir = Join-Path $ScriptDir "builds\$Environment\windows"
 
 # Flutter Windows release output (Flutter always builds x64 on Windows)
 $FlutterRelease = Join-Path $FlutterDir 'build\windows\x64\runner\Release'
@@ -266,6 +269,15 @@ function Save-BuildOutput {
     $sizeMB = [math]::Round((Get-ChildItem $ArchiveDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
     Write-Success "rustdesk-windows-$Environment -> $ArchiveDir (${sizeMB} MB)"
     Write-Info "Picked up automatically by desktop's '$Environment' build/dist commands."
+
+    # Second copy, kept in this repo — same environment namespacing, so it
+    # never overwrites either. Not read by anything; just a local backup.
+    if (Test-Path $LocalBackupDir) { Remove-Item -Recurse -Force $LocalBackupDir }
+    New-Item -ItemType Directory -Path $LocalBackupDir -Force | Out-Null
+    $backupDest = Join-Path $LocalBackupDir 'rustdesk-windows'
+    New-Item -ItemType Directory -Path $backupDest -Force | Out-Null
+    Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $backupDest -Force
+    Write-Success "rustdesk-windows -> builds\$Environment\windows\ (backup)"
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────

@@ -94,26 +94,45 @@ Each architecture build runs these steps in order:
 
 ## Output
 
-Built `.app` bundles are archived per environment+arch, so staging and
-production builds never overwrite each other:
+Built `.app` bundles are archived per environment+arch to **two** locations,
+so staging and production builds never overwrite each other:
 
 ```
-desktop/bin/gigidesk-archive/
+desktop/bin/gigidesk-archive/         # read by desktop's build pipeline
 ├── GIGIdesk-staging-x64.app      # Intel, staging (~64 MB)
 ├── GIGIdesk-staging-arm64.app    # ARM64, staging (~56 MB)
 ├── GIGIdesk-production-x64.app
 └── GIGIdesk-production-arm64.app
+
+builds/                                # local backup in this repo
+├── staging/mac/
+│   ├── GIGIdesk-x64.app
+│   └── GIGIdesk-arm64.app
+└── production/mac/
+    ├── GIGIdesk-x64.app
+    └── GIGIdesk-arm64.app
 ```
 
-`desktop/bin/gigidesk-archive/` is gitignored (whole `bin/` is) since the
-`.app` bundles contain large binaries.
+Both are gitignored (large binaries) — `desktop/bin/gigidesk-archive/` since
+the whole `desktop/bin/` is ignored, `builds/` via this repo's own
+`.gitignore`.
 
 GIGI Squad's `make:staging:*` / `make:production:*` scripts run
 `scripts/select-gigidesk-build.js` first, which copies the archived build
-matching that script's environment into the fixed path Electron Forge
-actually bundles: `desktop/bin/GIGIdesk-<arch>.app`. This happens
-automatically on every run — you never copy these by hand, and there's no
-manual build-order to get wrong.
+matching that script's environment (from `desktop/bin/gigidesk-archive/`)
+into the fixed path Electron Forge actually bundles:
+`desktop/bin/GIGIdesk-<arch>.app`. This happens automatically on every run —
+you never copy these by hand, and there's no manual build-order to get
+wrong. `builds/` is a backup only; nothing reads from it.
+
+**Opening a built `.app` directly:** every copy shares the same bundle
+identity (`com.onethreshold.gigidesk`), required so the real installed app
+(only one copy, at a fixed path) has a stable identity. Side effect: open
+more than one of these archived copies directly and macOS can't tell them
+apart, so it shows the raw folder name in the Dock (e.g.
+"GIGIdesk-production-x64") instead of "GIGIdesk". Only happens when manually
+opening files here — the real install at `/Applications/GIGIdesk.app` is
+always the only one registered and always shows cleanly.
 
 Each `.app` contains:
 ```
@@ -204,6 +223,7 @@ pod install
 | `target/<triple>/release/liblibrustdesk.dylib` | Compiled Rust shared library |
 | `target/<triple>/release/service` | Compiled service binary |
 | `desktop/bin/gigidesk-archive/GIGIdesk-<env>-*.app` | Output — archived per environment+arch, never overwritten |
+| `builds/<env>/mac/GIGIdesk-*.app` | Output — local backup copy in this repo, same archiving, never overwritten |
 | `desktop/bin/GIGIdesk-*.app` | Staged build — refreshed automatically for whichever environment is being packaged (see `../desktop/PACKAGING.md`) |
 
 ---
@@ -294,11 +314,11 @@ $env:VCPKG_ROOT = "C:\tools\vcpkg"
 
 ## Output
 
-The finished build folder is archived per environment, so staging and
-production builds never overwrite each other:
+The finished build folder is archived per environment to **two** locations,
+so staging and production builds never overwrite each other:
 
 ```
-desktop/bin/
+desktop/bin/                           # read by desktop's build pipeline
 ├── rustdesk-windows-staging/
 │   ├── GIGIdesk.exe
 │   ├── librustdesk.dll
@@ -307,15 +327,22 @@ desktop/bin/
 │   └── data/
 └── rustdesk-windows-production/
     └── ... (same layout)
+
+builds/                                # local backup in this repo
+├── staging/windows/rustdesk-windows/
+│   └── ... (same layout)
+└── production/windows/rustdesk-windows/
+    └── ... (same layout)
 ```
 
-`desktop/bin/` is gitignored since the release folders contain large binaries.
+Both are gitignored since the release folders contain large binaries.
 
 GIGI Squad's `build:win:staging` / `build:win:production` / `dist:staging` /
 `dist:production` scripts run `scripts/select-gigidesk-build.js` first, which
-copies the archived folder matching that script's environment into the fixed
-path electron-builder actually bundles: `desktop/bin/rustdesk-windows/`. This
-happens automatically on every run.
+copies the archived folder matching that script's environment (from
+`desktop/bin/`) into the fixed path electron-builder actually bundles:
+`desktop/bin/rustdesk-windows/`. This happens automatically on every run.
+`builds/` is a backup only; nothing reads from it.
 
 ---
 
@@ -396,4 +423,5 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 | `target\x86_64-pc-windows-msvc\release\librustdesk.dll` | Compiled Rust shared library (Windows) |
 | `target\x86_64-pc-windows-msvc\release\service.exe` | Compiled service binary (Windows) |
 | `desktop\bin\rustdesk-windows-<Environment>\` | Output — archived per environment, never overwritten |
+| `builds\<Environment>\windows\rustdesk-windows\` | Output — local backup copy in this repo, same archiving, never overwritten |
 | `desktop\bin\rustdesk-windows\` | Staged build — refreshed automatically for whichever environment is being packaged (see `..\desktop\PACKAGING.md`) |

@@ -91,8 +91,8 @@ GIGIdesk uses the standard RustDesk build pipeline. For the full cross-platform 
 
 **GIGI-specific entry points:**
 
-- `./build-gigidesk.sh intel | arm64 | all [staging|production]` — builds the macOS `.app` and archives it into the GIGI Squad desktop repo's `bin/gigidesk-archive/`, namespaced by environment+arch so staging and production builds never overwrite each other. The environment arg (default `staging`) picks which relay server gets compiled in — see [Configuration](#configuration) and `BUILDSCRIPT_GUIDE.md`.
-- `build-gigidesk-windows.ps1 [-Environment staging|production]` — builds the Windows x64 release into `bin/rustdesk-windows-<environment>/`, same environment selection.
+- `./build-gigidesk.sh intel | arm64 | all [staging|production]` — builds the macOS `.app` and archives it into **both** the GIGI Squad desktop repo's `bin/gigidesk-archive/` and this repo's own `builds/<environment>/mac/`, namespaced by environment+arch so staging and production builds never overwrite each other. The environment arg (default `staging`) picks which relay server gets compiled in — see [Configuration](#configuration) and `BUILDSCRIPT_GUIDE.md`.
+- `build-gigidesk-windows.ps1 [-Environment staging|production]` — builds the Windows x64 release into **both** `bin/rustdesk-windows-<environment>/` and this repo's own `builds/<environment>/windows/`, same environment selection.
 - The bundled macOS/Windows distributables are ultimately produced by **GIGI Squad's** `npm run make:staging:*` / `make:production:*` (macOS) or `build:win:staging` / `build:win:production` / `dist:staging` / `dist:production` (Windows), which automatically stage the matching archived GIGIdesk build before packaging — no manual copying or build-order to get right. Full command reference: **`PACKAGING.md`**.
 
 Quick local check (engine only): `python3 build.py --flutter` (desktop) or `cargo build --release`. See `CLAUDE.md` and `GUIDE.md` for more.
