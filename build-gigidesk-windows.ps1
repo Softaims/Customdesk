@@ -8,12 +8,14 @@
 
     Compiles Rust (x86_64-pc-windows-msvc), builds Flutter for Windows,
     copies librustdesk.dll and service.exe into the Flutter output, then
-    saves the finished build to desktop/bin/rustdesk-windows/ and
-    Customdesk/builds/<Environment>/windows/.
+    archives the finished build to desktop/bin/rustdesk-windows-<Environment>/.
 
     -Environment picks which RustDesk relay (IP + pubkey, see
     libs/hbb_common/src/config.rs) gets compiled in — defaults to staging so
     a bare invocation never accidentally ships pointed at production.
+    Staging and production archives coexist without overwriting each other;
+    apps/desktop's scripts/select-gigidesk-build.js copies the one matching
+    the current GIGI_ENV into bin/rustdesk-windows/ right before packaging.
 
 .EXAMPLE
     .\build-gigidesk-windows.ps1
@@ -35,7 +37,6 @@ $ErrorActionPreference = 'Stop'
 # ─── Configuration ───────────────────────────────────────────────────────────
 $ScriptDir   = $PSScriptRoot
 $FlutterDir  = Join-Path $ScriptDir 'flutter'
-$BuildsDir   = Join-Path $ScriptDir 'builds'
 
 $RustTarget  = 'x86_64-pc-windows-msvc'
 $AppName     = 'GIGIdesk'
@@ -57,7 +58,8 @@ function Resolve-DesktopBinDir {
     throw "Could not locate desktop project directory. Expected one of: $($candidates -join ', ')"
 }
 
-$OutputDir = Resolve-DesktopBinDir
+$OutputDir  = Resolve-DesktopBinDir
+$ArchiveDir = Join-Path $OutputDir "rustdesk-windows-$Environment"
 
 # Flutter Windows release output (Flutter always builds x64 on Windows)
 $FlutterRelease = Join-Path $FlutterDir 'build\windows\x64\runner\Release'
@@ -253,28 +255,17 @@ function Invoke-Verify {
 function Save-BuildOutput {
     Write-Step 'Saving build output'
 
-    $destName   = 'rustdesk-windows'
-
-    # 1) desktop/bin/rustdesk-windows — embedded into Electron app (npm run dist).
-    #    Single active slot — whichever environment you last built is what
-    #    gets packaged.
-    $destDesktop = Join-Path $OutputDir $destName
+    # Archived per environment — staging and production builds coexist
+    # without overwriting each other. apps/desktop's
+    # scripts/select-gigidesk-build.js copies the one matching the current
+    # GIGI_ENV into bin/rustdesk-windows/ right before packaging.
     if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null }
-    if (Test-Path $destDesktop) { Remove-Item -Recurse -Force $destDesktop }
-    New-Item -ItemType Directory -Path $destDesktop -Force | Out-Null
-    Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $destDesktop -Force
-    $sizeMB = [math]::Round((Get-ChildItem $destDesktop -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-    Write-Success "$destName ($Environment) -> $OutputDir (${sizeMB} MB)"
-
-    # 2) Customdesk/builds/<Environment>/windows — both environments can
-    #    coexist here at once, unlike desktop/bin's single active slot.
-    $envBuildsDir = Join-Path $BuildsDir (Join-Path $Environment 'windows')
-    if (-not (Test-Path $envBuildsDir)) { New-Item -ItemType Directory -Path $envBuildsDir -Force | Out-Null }
-    $destBuilds = Join-Path $envBuildsDir $destName
-    if (Test-Path $destBuilds) { Remove-Item -Recurse -Force $destBuilds }
-    New-Item -ItemType Directory -Path $destBuilds -Force | Out-Null
-    Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $destBuilds -Force
-    Write-Success "$destName -> builds/$Environment/windows/ (backup)"
+    if (Test-Path $ArchiveDir) { Remove-Item -Recurse -Force $ArchiveDir }
+    New-Item -ItemType Directory -Path $ArchiveDir -Force | Out-Null
+    Copy-Item -Recurse -Path (Join-Path $FlutterRelease '*') -Destination $ArchiveDir -Force
+    $sizeMB = [math]::Round((Get-ChildItem $ArchiveDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
+    Write-Success "rustdesk-windows-$Environment -> $ArchiveDir (${sizeMB} MB)"
+    Write-Info "Picked up automatically by desktop's '$Environment' build/dist commands."
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
@@ -305,12 +296,11 @@ function Main {
     Write-Banner "Build complete in $(Format-Elapsed $elapsed)"
 
     Write-Host 'Output:' -ForegroundColor White
-    $outFolder = Join-Path $OutputDir 'rustdesk-windows'
-    if (Test-Path $outFolder) {
-        Write-Host "Desktop package source: $outFolder" -ForegroundColor DarkCyan
-        Write-Host "Backup output: $(Join-Path $BuildsDir (Join-Path $Environment (Join-Path 'windows' 'rustdesk-windows')))" -ForegroundColor DarkCyan
-        Get-ChildItem $outFolder -File | Select-Object Name, @{N='Size';E={ "$([math]::Round($_.Length/1KB,1)) KB" }} |
+    if (Test-Path $ArchiveDir) {
+        Write-Host "Archived build: $ArchiveDir" -ForegroundColor DarkCyan
+        Get-ChildItem $ArchiveDir -File | Select-Object Name, @{N='Size';E={ "$([math]::Round($_.Length/1KB,1)) KB" }} |
             Format-Table -AutoSize
+        Write-Host "Next: in apps\desktop run 'npm run build:win:$Environment' or 'npm run dist:$Environment' to package it." -ForegroundColor DarkCyan
     }
 }
 

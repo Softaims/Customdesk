@@ -3,6 +3,7 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
+import 'package:flutter_hbb/desktop/pages/service_status_page.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -91,28 +92,23 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tabWidget = Container(
+    // GIGIdesk ships with no end-user UI in the GIGI product — the upstream
+    // RustDesk home page (ID/password, connect box) and settings tab are
+    // never rendered here; a single static explanation replaces the whole
+    // tab bar. tabController/RemoteCountState above are left initialized
+    // as-is since other code (session/connection-manager windows) may still
+    // rely on them existing, even though nothing renders their tabs here.
+    final serviceWidget = Container(
         child: Scaffold(
             backgroundColor: Theme.of(context).colorScheme.background,
-            body: DesktopTab(
-              controller: tabController,
-              tail: Offstage(
-                offstage: bind.isIncomingOnly() || bind.isDisableSettings(),
-                child: ActionIcon(
-                  message: 'Settings',
-                  icon: IconFont.menu,
-                  onTap: DesktopTabPage.onAddSetting,
-                  isClose: false,
-                ),
-              ),
-            )));
+            body: const ServiceStatusPage()));
     return isMacOS || kUseCompatibleUiMode
-        ? tabWidget
+        ? serviceWidget
         : Obx(
             () => DragToResizeArea(
               resizeEdgeSize: stateGlobal.resizeEdgeSize.value,
               enableResizeEdges: windowManagerEnableResizeEdges,
-              child: tabWidget,
+              child: serviceWidget,
             ),
           );
   }

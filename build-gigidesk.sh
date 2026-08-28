@@ -10,8 +10,11 @@
 # The environment picks which RustDesk relay (IP + pubkey, see
 # libs/hbb_common/src/config.rs) gets compiled in — defaults to staging so a
 # bare `./build-gigidesk.sh all` never accidentally ships pointed at
-# production. Output is kept separate per environment under builds/, see
-# save_app() below.
+# production. Output is archived per environment+arch under
+# desktop/bin/gigidesk-archive/ — staging and production builds never
+# overwrite each other, see save_app() below. apps/desktop's build/make
+# commands pick the right archived build automatically via
+# scripts/select-gigidesk-build.js.
 #
 set -euo pipefail
 
@@ -20,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FLUTTER_DIR="$SCRIPT_DIR/flutter"
 XCCONFIG="$FLUTTER_DIR/macos/Flutter/CustomArch.xcconfig"
 OUTPUT_DIR="$SCRIPT_DIR/../desktop/bin"
-BUILDS_DIR="$SCRIPT_DIR/builds"
+ARCHIVE_DIR="$OUTPUT_DIR/gigidesk-archive"
 
 MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.14}"
 VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg}"
@@ -247,23 +250,18 @@ save_app() {
 
   local src="$FLUTTER_DIR/build/macos/Build/Products/Release/$APP_NAME.app"
 
-  # 1) Save to desktop/bin (Electron Forge make uses this path) — single active
-  #    slot, whichever environment you last built is what gets packaged.
-  local dest_desktop="$OUTPUT_DIR/$APP_NAME-$label.app"
-  rm -rf "$dest_desktop"
-  cp -R "$src" "$dest_desktop"
+  # Archived per environment+arch — staging and production builds coexist
+  # without overwriting each other. apps/desktop's
+  # scripts/select-gigidesk-build.js copies the one matching the current
+  # GIGI_ENV into bin/$APP_NAME-$label.app right before packaging.
+  mkdir -p "$ARCHIVE_DIR"
+  local dest="$ARCHIVE_DIR/$APP_NAME-$ENVIRONMENT-$label.app"
+  rm -rf "$dest"
+  cp -R "$src" "$dest"
   local size
-  size=$(du -sh "$dest_desktop" | cut -f1)
-  success "$APP_NAME-$label.app ($ENVIRONMENT) → desktop/bin/ ($size)"
-
-  # 2) Save to Customdesk/builds/<environment>/mac/ — both environments can
-  #    coexist here at once, unlike desktop/bin's single active slot.
-  local env_builds_dir="$BUILDS_DIR/$ENVIRONMENT/mac"
-  mkdir -p "$env_builds_dir"
-  local dest_builds="$env_builds_dir/$APP_NAME-$label.app"
-  rm -rf "$dest_builds"
-  cp -R "$src" "$dest_builds"
-  success "$APP_NAME-$label.app → builds/$ENVIRONMENT/mac/ (backup)"
+  size=$(du -sh "$dest" | cut -f1)
+  success "$APP_NAME-$ENVIRONMENT-$label.app → desktop/bin/gigidesk-archive/ ($size)"
+  info "Picked up automatically by desktop's '$ENVIRONMENT' make/build commands."
 }
 
 # ─── Full build pipeline for one architecture ───────────────────────────────
@@ -321,7 +319,7 @@ main() {
   local total_start=$SECONDS
 
   check_prerequisites
-  mkdir -p "$OUTPUT_DIR"
+  mkdir -p "$ARCHIVE_DIR"
 
   case "$target" in
     intel|x64|x86_64)
@@ -347,9 +345,10 @@ main() {
   banner "Build complete in $(elapsed $total_duration)"
 
   echo -e "${BOLD}Output:${NC}"
-  ls -lh "$OUTPUT_DIR"/$APP_NAME-*.app/Contents/MacOS/$APP_NAME 2>/dev/null | \
+  ls -lh "$ARCHIVE_DIR"/$APP_NAME-$ENVIRONMENT-*.app/Contents/MacOS/$APP_NAME 2>/dev/null | \
     awk '{print "  " $NF " (" $5 ")"}'
   echo ""
+  info "Next: in apps/desktop run 'npm run make:$ENVIRONMENT:intel' or 'make:$ENVIRONMENT:arm64' to package it."
 }
 
 main "$@"

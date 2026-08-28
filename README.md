@@ -1,6 +1,6 @@
 # GIGIdesk — the remote-desktop engine for GIGI
 
-GIGIdesk is a customized fork of [RustDesk](https://github.com/rustdesk/rustdesk) — the open-source remote desktop tool written in Rust with a Flutter UI. In the GIGI suite it is the remote-control engine: GIGI Connect (the Electron desktop app) bundles, launches, and drives this binary so a caregiver can take remote control of an elder's computer to help them.
+GIGIdesk is a customized fork of [RustDesk](https://github.com/rustdesk/rustdesk) — the open-source remote desktop tool written in Rust with a Flutter UI. In the GIGI suite it is the remote-control engine: GIGI Squad (the Electron desktop app) bundles, launches, and drives this binary so a caregiver can take remote control of an elder's computer to help them.
 
 This is a fork, not a from-scratch project. Most of the codebase is upstream RustDesk; the GIGI-specific changes are listed below, and the original RustDesk license still applies (see [Upstream & license](#upstream--license)).
 
@@ -14,19 +14,19 @@ Grounded in the fork's commit history and config:
 - **Renamed/rebranded to GIGIdesk** — Cargo package `gigidesk`, bundle name `GIGIdesk`, identifier `com.softaims.gigidesk`, GIGI logos in the macOS tray, custom Windows resource metadata (`Cargo.toml`, `src/tray.rs`, `res/`).
 - **Self-hosted rendezvous/relay server (the "EIP" server)** — points at a private GIGI-operated RustDesk server instead of the public RustDesk infrastructure. `get_relay_server()` in `src/rendezvous_mediator.rs` was changed to always use the configured server. See [Configuration](#configuration). (commits: "Rustdesk selfhosting configuration", "Configured custom server with EIP")
 - **Vendored `hbb_common` into the repo** — the upstream git submodule was removed and the library is now committed directly under `libs/hbb_common/` (commit: "Vendor hbb_common into repo (remove submodule)"), so clones don't need `--recurse-submodules`.
-- **GIGI build tooling** — added `build-gigidesk.sh` (macOS Intel/ARM64) and `build-gigidesk-windows.ps1`, plus fixes for build paths and Windows paths (commits: "fixed build path and build issues", "Windows path", "changed route of gigidesk outputs"). The mac build script writes the finished `.app` straight into the GIGI Connect desktop repo's `bin/`.
+- **GIGI build tooling** — added `build-gigidesk.sh` (macOS Intel/ARM64) and `build-gigidesk-windows.ps1`, plus fixes for build paths and Windows paths (commits: "fixed build path and build issues", "Windows path", "changed route of gigidesk outputs"). The mac build script writes the finished `.app` straight into the GIGI Squad desktop repo's `bin/`.
 - **Custom UI / branding work** — GIGI icons, mac tray assets, mac setup, and permanent-password automation for the elder side (commits: "mac icons and setup", "macos setup", "mac builds and permanent password automation").
 
 Everything else (protocol, codecs, screen capture, input simulation, Flutter UI scaffolding) is upstream RustDesk.
 
 ## How it fits into GIGI
 
-- **GIGI Connect (`apps/desktop`)** builds GIGIdesk and bundles the resulting binary under its `bin/` directory. Its `make:intel` / `make:arm64` scripts select the GIGIdesk build via a `RUSTDESK_ARCH` switch (`x64` / `arm64`) and package it into the signed Electron app.
-- On the **elder's** machine, GIGI Connect runs GIGIdesk in service mode (`gigidesk --server`) and auto-provisions a RustDesk ID + permanent password.
-- When a **caregiver** starts a remote session, GIGI Connect launches the bundled GIGIdesk with the elder's credentials via CLI args (roughly `gigidesk --connect <id> <password> --password <password> --relay`) — the session goes through the self-hosted relay.
+- **GIGI Squad (`apps/desktop`)** builds GIGIdesk and bundles the resulting binary under its `bin/` directory. Its `make:intel` / `make:arm64` scripts select the GIGIdesk build via a `RUSTDESK_ARCH` switch (`x64` / `arm64`) and package it into the signed Electron app.
+- On the **elder's** machine, GIGI Squad runs GIGIdesk in service mode (`gigidesk --server`) and auto-provisions a RustDesk ID + permanent password.
+- When a **caregiver** starts a remote session, GIGI Squad launches the bundled GIGIdesk with the elder's credentials via CLI args (roughly `gigidesk --connect <id> <password> --password <password> --relay`) — the session goes through the self-hosted relay.
 - The GIGI **backend (`apps/backend`)** records these sessions: `CallSession.callType = REMOTE_DESKTOP` (`apps/backend/prisma/schema.prisma`).
 
-GIGIdesk does not handle GIGI's own signaling — it is the remote-control transport, orchestrated by GIGI Connect.
+GIGIdesk does not handle GIGI's own signaling — it is the remote-control transport, orchestrated by GIGI Squad.
 
 ## Tech stack
 
@@ -91,29 +91,29 @@ GIGIdesk uses the standard RustDesk build pipeline. For the full cross-platform 
 
 **GIGI-specific entry points:**
 
-- `./build-gigidesk.sh intel | arm64 | all [staging|production]` — builds the macOS `.app` and drops it into the GIGI Connect desktop repo's `bin/` (`OUTPUT_DIR=../desktop/bin`). The environment arg (default `staging`) picks which relay server gets compiled in — see [Configuration](#configuration) and `BUILDSCRIPT_GUIDE.md`.
-- `build-gigidesk-windows.ps1 [-Environment staging|production]` — builds the Windows x64 release, same environment selection.
-- The bundled macOS distributables are ultimately produced by **GIGI Connect's** `npm run make:intel` / `npm run make:arm64` (staging) or `npm run make:production:intel` / `npm run make:production:arm64` (production), which package the GIGIdesk build (selected by `RUSTDESK_ARCH`) into the signed Electron app. **The GIGIdesk environment and the GIGI Connect environment must match** — see `../desktop/README.md`'s Environments section.
+- `./build-gigidesk.sh intel | arm64 | all [staging|production]` — builds the macOS `.app` and archives it into the GIGI Squad desktop repo's `bin/gigidesk-archive/`, namespaced by environment+arch so staging and production builds never overwrite each other. The environment arg (default `staging`) picks which relay server gets compiled in — see [Configuration](#configuration) and `BUILDSCRIPT_GUIDE.md`.
+- `build-gigidesk-windows.ps1 [-Environment staging|production]` — builds the Windows x64 release into `bin/rustdesk-windows-<environment>/`, same environment selection.
+- The bundled macOS/Windows distributables are ultimately produced by **GIGI Squad's** `npm run make:staging:*` / `make:production:*` (macOS) or `build:win:staging` / `build:win:production` / `dist:staging` / `dist:production` (Windows), which automatically stage the matching archived GIGIdesk build before packaging — no manual copying or build-order to get right. Full command reference: **`PACKAGING.md`**.
 
 Quick local check (engine only): `python3 build.py --flutter` (desktop) or `cargo build --release`. See `CLAUDE.md` and `GUIDE.md` for more.
 
 ## Deployment
 
-GIGIdesk is **not distributed on its own** — it is built and bundled inside GIGI Connect, which is the installer that ships to end users. Build both halves for the **same environment** — a production GIGI Connect build embedding a staging-relay GIGIdesk (or vice versa) will silently split-brain (backend/Jitsi on one environment, remote-control relay on another):
+GIGIdesk is **not distributed on its own** — it is built and bundled inside GIGI Squad, which is the installer that ships to end users:
 
 ```bash
 # Staging
-# 1) build the engine and drop the .app into the desktop repo's bin/
-./build-gigidesk.sh all staging       # macOS Intel + ARM64  (OUTPUT_DIR=../desktop/bin)
-# 2) package GIGI Connect with the bundled engine (in apps/desktop)
-cd ../desktop && npm run make:arm64   # or make:intel
+./build-gigidesk.sh all staging                  # macOS Intel + ARM64
+cd ../desktop && npm run make:staging:arm64      # or make:staging:intel
 
 # Production
 ./build-gigidesk.sh all production
 cd ../desktop && npm run make:production:arm64   # or make:production:intel
 ```
 
-The self-hosted relay/rendezvous server GIGIdesk connects to is operated and deployed separately from this binary — see `docs/infra/production/rustdesk-blueprint.md` (production) and `docs/rustdesk/README.md` (staging) in the meta-repo.
+`apps/desktop`'s `scripts/select-gigidesk-build.js` runs automatically as part of every make/build/dist script and stages the archived build matching that command's environment — if it isn't built yet, the script fails with the exact command to run. See `PACKAGING.md` for the full command matrix and output layout.
+
+The self-hosted relay/rendezvous server GIGIdesk connects to is operated and deployed separately from this binary — see `docs/infra/production/rustdesk.md` (production current state), `docs/infra/rebuild-guidelines/rustdesk-rebuild.md` (build procedure, both environments), and `docs/rustdesk/README.md` (staging ops) in the meta-repo.
 
 ## Configuration
 
@@ -140,7 +140,7 @@ There is **no `.env` file** — GIGIdesk takes no *runtime* environment variable
 GIGI is an elder-care remote-assistance and communication platform. The suite is five independent git repos under the `gigi-root/` workspace meta-repo — each app keeps its own `.git`, and `apps/` is gitignored by the meta-repo (these are **not** submodules).
 
 - `apps/backend` — GIGI backend: NestJS + Prisma + PostgreSQL API and Socket.io signaling.
-- `apps/desktop` — GIGI Connect: Electron desktop app for elders and caregivers; launches this engine for remote control.
+- `apps/desktop` — GIGI Squad: Electron desktop app for elders and caregivers; launches this engine for remote control.
 - `apps/customdesk` — **GIGIdesk (this repo)**: the customized RustDesk remote-desktop engine.
 - `apps/mobile` — GIGI SQUAD: Expo React Native mobile companion.
 - `apps/landing` — gigi-landing: React + TypeScript + Vite landing and legal pages.

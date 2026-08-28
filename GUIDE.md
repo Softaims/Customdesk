@@ -3,7 +3,7 @@
 > **Last updated:** February 2026
 > **Maintained by:** Softaims
 
-GIGIdesk is a customized fork of [RustDesk](https://github.com/rustdesk/rustdesk) v1.4.5, rebranded and extended for the GIGI Connect elder-care remote desktop platform. This guide covers setting up the development environment, compiling native Rust binaries, and building the Flutter macOS UI for both **Intel (x86_64)** and **Apple Silicon (arm64)**.
+GIGIdesk is a customized fork of [RustDesk](https://github.com/rustdesk/rustdesk) v1.4.5, rebranded and extended for the GIGI Squad elder-care remote desktop platform. This guide covers setting up the development environment, compiling native Rust binaries, and building the Flutter macOS UI for both **Intel (x86_64)** and **Apple Silicon (arm64)**.
 
 ---
 
@@ -23,7 +23,7 @@ GIGIdesk is a customized fork of [RustDesk](https://github.com/rustdesk/rustdesk
 12. [Important Files & Configuration](#important-files--configuration)
 13. [How the Architecture Switching Works](#how-the-architecture-switching-works)
 14. [Icons & Branding](#icons--branding)
-15. [Integrating with GIGI Connect Desktop](#integrating-with-gigi-connect-desktop)
+15. [Integrating with GIGI Squad Desktop](#integrating-with-gigi-squad-desktop)
 16. [Troubleshooting](#troubleshooting)
 
 ---
@@ -47,7 +47,7 @@ GIGIdesk is a customized fork of [RustDesk](https://github.com/rustdesk/rustdesk
 - **CLI Flags**: `--password` works **without root/sudo** (direct config write fallback)
 - **Headless Mode**: `--server` flag starts the connection server + system tray with **no main window**
 - **Flutter UI**: Custom left/right panes with GIGIdesk branding, service toggle hidden (always-on for elder care)
-- **Icons**: All icons replaced with GIGI Connect branding (icns, png, svg, ico)
+- **Icons**: All icons replaced with GIGI Squad branding (icns, png, svg, ico)
 - **Bundle ID & Signing**: `com.softaims.gigidesk`, ad-hoc signed
 
 ---
@@ -433,7 +433,7 @@ Starts GIGIdesk in **headless mode** — runs the connection server in a backgro
 - **macOS/Windows**: Spawns server thread → starts tray on main thread → no window
 - **Linux**: Starts server directly (tray handled separately via `--tray`)
 
-This is critical for the GIGI Connect use case: the elder's GIGIdesk should run invisibly, always ready for connections.
+This is critical for the GIGI Squad use case: the elder's GIGIdesk should run invisibly, always ready for connections.
 
 ### `--get-id`
 
@@ -476,11 +476,11 @@ Prints the current permanent password to stdout:
 | `flutter/macos/Flutter/Flutter-Release.xcconfig` | Includes `CustomArch.xcconfig` for release builds |
 | `flutter/macos/Podfile` | CocoaPods config with dynamic arch reading from `CustomArch.xcconfig` |
 | `flutter/macos/Runner/Configs/AppInfo.xcconfig` | `PRODUCT_NAME = GIGIdesk`, `PRODUCT_BUNDLE_IDENTIFIER = com.softaims.gigidesk` |
-| `flutter/macos/Runner/AppIcon.icns` | macOS app icon (replaced with GIGI Connect logo) |
+| `flutter/macos/Runner/AppIcon.icns` | macOS app icon (replaced with GIGI Squad logo) |
 | `flutter/macos/Runner/Info.plist` | App metadata, `LSUIElement = 1` (agent app), URL scheme `gigidesk://` |
 | `flutter/lib/desktop/pages/desktop_home_page.dart` | Custom left/right pane UI with GIGIdesk branding |
 | `flutter/lib/desktop/pages/desktop_setting_page.dart` | Settings page (service toggle hidden) |
-| `flutter/assets/icon.svg` | Flutter UI icon (replaced with GIGI Connect logo) |
+| `flutter/assets/icon.svg` | Flutter UI icon (replaced with GIGI Squad logo) |
 
 ### Icons & Assets
 
@@ -588,7 +588,7 @@ When switching architectures, you must:
 
 ### Replacing Icons
 
-All GIGIdesk icons should match the GIGI Connect branding. The source of truth is the `.icns` file at `desktop/assets/logo/icon.icns` (in the GIGI Connect Electron project).
+All GIGIdesk icons should match the GIGI Squad branding. The source of truth is the `.icns` file at `desktop/assets/logo/icon.icns` (in the GIGI Squad Electron project).
 
 To regenerate all sizes from a new icon:
 
@@ -618,16 +618,16 @@ For Windows icons (`res/icon.ico`, `res/tray-icon.ico`), use the same `.ico` fil
 
 ---
 
-## Integrating with GIGI Connect Desktop
+## Integrating with GIGI Squad Desktop
 
-The built GIGIdesk `.app` bundles are embedded inside the GIGI Connect Electron app as `extraResource`. The naming convention is:
+The built GIGIdesk `.app` bundles are embedded inside the GIGI Squad Electron app as `extraResource`. The naming convention is:
 
 ```
 desktop/assets/GIGIdesk-x64.app    ← Intel build
 desktop/assets/GIGIdesk-arm64.app  ← Apple Silicon build
 ```
 
-### Saving builds for GIGI Connect
+### Saving builds for GIGI Squad
 
 > **Remember**: Both Intel and ARM64 Flutter builds land at the exact same output path (`flutter/build/macos/Build/Products/Release/GIGIdesk.app`). Copy it out **immediately** after each build before starting the next one.
 
@@ -645,7 +645,7 @@ cp -R build/macos/Build/Products/Release/GIGIdesk.app \
   ../../desktop/assets/GIGIdesk-arm64.app
 ```
 
-### How GIGI Connect uses GIGIdesk
+### How GIGI Squad uses GIGIdesk
 
 The Electron app (`desktop/`) bundles GIGIdesk and manages it:
 
@@ -751,7 +751,7 @@ flutter build macos --release
 
 **Cause**: Electron's Fuses plugin invalidates the code signature during packaging.
 
-**Fix**: The GIGI Connect `forge.config.js` has a `postPackage` hook that re-signs everything:
+**Fix**: The GIGI Squad `forge.config.js` has a `postPackage` hook that re-signs everything:
 ```javascript
 // Signs nested GIGIdesk app first, then the outer Electron app
 execSync(`codesign --deep --force --sign - "${rustdeskInResources}"`);

@@ -55,7 +55,18 @@ fn make_tray() -> hbb_common::ResultType<()> {
 
     let tray_menu = Menu::new();
     let open_i = MenuItem::new(translate("Open".to_owned()), true, None);
-    let quit_i = MenuItem::new(translate(format!("Quit {}", crate::get_app_name())), true, None);
+    // Deliberately explicit: quitting here silently kills the caregiver
+    // relay with no confirmation dialog (no native dialog crate is wired up
+    // in this event loop to add one safely) — the label itself is the only
+    // warning most people quitting from the tray will ever see.
+    let quit_i = MenuItem::new(
+        translate(format!(
+            "Quit {} (stops remote support)",
+            crate::get_app_name()
+        )),
+        true,
+        None,
+    );
     tray_menu.append_items(&[&open_i, &quit_i]).ok();
     let tooltip = |count: usize| {
         if count == 0 {

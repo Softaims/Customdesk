@@ -35,10 +35,9 @@ RustDesk relay — IP + public key, `libs/hbb_common/src/config.rs` — gets
 compiled into the binary via the `env_production` Cargo feature. Staging is
 the default so a bare `./build-gigidesk.sh all` never accidentally ships
 pointed at production. See the main `README.md`'s Configuration section for
-the compile-time mechanism, and `../desktop/README.md`'s Environments section
-for the matching GIGI Connect side — **build both halves for the same
-environment**, or the shipped app talks to backend/Jitsi on one environment
-while remote-control talks to the relay on the other.
+the compile-time mechanism. The build is archived per environment (see
+Output below) and picked up automatically by the matching GIGI Squad
+`make:staging:*` / `make:production:*` script — see `PACKAGING.md`.
 
 ---
 
@@ -81,44 +80,40 @@ Each architecture build runs these steps in order:
 5. Build Flutter           → flutter build macos --release (clean DerivedData first)
 6. Copy service binary     → embeds the service binary into .app/Contents/MacOS/
 7. Verify architectures    → confirms both binaries match expected arch
-8. Save .app               → copies to desktop/bin/GIGIdesk-{x64|arm64}.app (+ builds/<env>/mac/)
+8. Save .app               → archives to desktop/bin/gigidesk-archive/GIGIdesk-<env>-{x64|arm64}.app
 ```
 
 ### Architecture Mapping
 
 | Argument | Rust Target | xcconfig ARCHS | Output File |
 |---|---|---|---|
-| `intel` / `x64` / `x86_64` | `x86_64-apple-darwin` | `x86_64` | `GIGIdesk-x64.app` |
-| `arm64` / `aarch64` / `arm` | `aarch64-apple-darwin` | `arm64` | `GIGIdesk-arm64.app` |
+| `intel` / `x64` / `x86_64` | `x86_64-apple-darwin` | `x86_64` | `GIGIdesk-<env>-x64.app` |
+| `arm64` / `aarch64` / `arm` | `aarch64-apple-darwin` | `arm64` | `GIGIdesk-<env>-arm64.app` |
 
 ---
 
 ## Output
 
-Built `.app` bundles are saved to **two locations**:
+Built `.app` bundles are archived per environment+arch, so staging and
+production builds never overwrite each other:
 
-### 1. `desktop/bin/` — used by Electron packaging (single active slot)
 ```
-desktop/bin/
-├── GIGIdesk-x64.app      # Intel build (~64 MB)
-└── GIGIdesk-arm64.app     # ARM64 build (~56 MB)
-```
-Whichever environment you last built is what's here — there's only one slot
-per arch, so if you build `production` and then `staging`, the production
-`.app` is gone from this location (still backed up below).
-
-### 2. `Customdesk/builds/<environment>/mac/` — secure backup in this repo
-```
-Customdesk/builds/
-├── staging/mac/
-│   ├── GIGIdesk-x64.app
-│   └── GIGIdesk-arm64.app
-└── production/mac/
-    ├── GIGIdesk-x64.app
-    └── GIGIdesk-arm64.app
+desktop/bin/gigidesk-archive/
+├── GIGIdesk-staging-x64.app      # Intel, staging (~64 MB)
+├── GIGIdesk-staging-arm64.app    # ARM64, staging (~56 MB)
+├── GIGIdesk-production-x64.app
+└── GIGIdesk-production-arm64.app
 ```
 
-> `builds/` is gitignored since the `.app` bundles contain large binaries. It serves as a local backup so you always have the last successful build of **both environments** in the Customdesk repo without needing to rebuild either — unlike `desktop/bin/`'s single active slot, both coexist here.
+`desktop/bin/gigidesk-archive/` is gitignored (whole `bin/` is) since the
+`.app` bundles contain large binaries.
+
+GIGI Squad's `make:staging:*` / `make:production:*` scripts run
+`scripts/select-gigidesk-build.js` first, which copies the archived build
+matching that script's environment into the fixed path Electron Forge
+actually bundles: `desktop/bin/GIGIdesk-<arch>.app`. This happens
+automatically on every run — you never copy these by hand, and there's no
+manual build-order to get wrong.
 
 Each `.app` contains:
 ```
@@ -127,7 +122,7 @@ GIGIdesk.app/Contents/MacOS/
 └── service        # Background service binary
 ```
 
-These are then embedded into the **GIGI Connect** Electron app during `npm run make`.
+These are then embedded into the **GIGI Squad** Electron app during `npm run make`.
 
 ---
 
@@ -143,7 +138,7 @@ These are then embedded into the **GIGI Connect** Electron app during `npm run m
 
 ---
 
-## After Building — Making GIGI Connect DMGs
+## After Building — Making GIGI Squad DMGs
 
 Once both `.app` bundles are in `desktop/bin/`, build the Electron DMGs — **use the
 matching environment** (see Environments above):
@@ -208,8 +203,8 @@ pod install
 | `libs/hbb_common/src/config.rs` | Relay identity constants (`RENDEZVOUS_SERVERS`/`RS_PUB_KEY`), `env_production`-gated |
 | `target/<triple>/release/liblibrustdesk.dylib` | Compiled Rust shared library |
 | `target/<triple>/release/service` | Compiled service binary |
-| `desktop/bin/GIGIdesk-*.app` | Output — embedded into Electron app (single active slot) |
-| `builds/<staging\|production>/mac/GIGIdesk-*.app` | Output — secure backup in Customdesk repo (gitignored), both environments coexist |
+| `desktop/bin/gigidesk-archive/GIGIdesk-<env>-*.app` | Output — archived per environment+arch, never overwritten |
+| `desktop/bin/GIGIdesk-*.app` | Staged build — refreshed automatically for whichever environment is being packaged (see `../desktop/PACKAGING.md`) |
 
 ---
 
@@ -242,8 +237,10 @@ cd Customdesk
 Same mechanism as the macOS script (see its Environments section above) —
 `-Environment` (default `staging`) sets the `env_production` Cargo feature,
 which picks the relay identity compiled into `librustdesk.dll` from
-`libs/hbb_common/src/config.rs`. **Build the matching environment on the GIGI
-Connect side too** — see `../desktop/README.md`.
+`libs/hbb_common/src/config.rs`. The build is archived per environment (see
+Output below) and picked up automatically by the matching GIGI Squad
+`build:win:staging` / `build:win:production` / `dist:staging` /
+`dist:production` script — see `../desktop/PACKAGING.md`.
 
 ---
 
@@ -284,49 +281,41 @@ $env:VCPKG_ROOT = "C:\tools\vcpkg"
 5. Copy DLL to output    → copies librustdesk.dll into Flutter release folder
 6. Copy service.exe      → copies service.exe into Flutter release folder
 7. Verify output         → confirms GIGIdesk.exe, librustdesk.dll, service.exe exist
-8. Save output           → copies Release\ folder to gigiChat-desktop\bin\ and builds\
+8. Save output           → archives Release\ folder to desktop\bin\rustdesk-windows-<Environment>\
 ```
 
 ### Architecture
 
 | Target | Rust Triple | Output Folder |
 |---|---|---|
-| Windows x64 | `x86_64-pc-windows-msvc` | `GIGIdesk-x64\` |
+| Windows x64 | `x86_64-pc-windows-msvc` | `rustdesk-windows-<Environment>\` |
 
 ---
 
 ## Output
 
-The finished build folder is saved to **two locations**:
+The finished build folder is archived per environment, so staging and
+production builds never overwrite each other:
 
-### 1. `gigiChat-desktop/bin/` — used by Electron packaging (single active slot)
 ```
-gigiChat-desktop/bin/
-└── GIGIdesk-x64/
-    ├── GIGIdesk.exe
-    ├── librustdesk.dll
-    ├── service.exe
-    ├── flutter_windows.dll
-    └── data/
-```
-Whichever environment you last built is what's here — build `-Environment production`
-right before packaging a production installer, or you'll ship whatever was built last.
-
-### 2. `Customdesk/builds/<environment>/windows/` — local backup in this repo
-```
-Customdesk/builds/
-├── staging/windows/
-│   └── rustdesk-windows/
-│       ├── GIGIdesk.exe
-│       ├── librustdesk.dll
-│       ├── service.exe
-│       └── ...
-└── production/windows/
-    └── rustdesk-windows/
-        └── ... (same layout)
+desktop/bin/
+├── rustdesk-windows-staging/
+│   ├── GIGIdesk.exe
+│   ├── librustdesk.dll
+│   ├── service.exe
+│   ├── flutter_windows.dll
+│   └── data/
+└── rustdesk-windows-production/
+    └── ... (same layout)
 ```
 
-> `builds/` is gitignored since the release folders contain large binaries. Both environments coexist here, unlike `gigiChat-desktop/bin/`'s single active slot.
+`desktop/bin/` is gitignored since the release folders contain large binaries.
+
+GIGI Squad's `build:win:staging` / `build:win:production` / `dist:staging` /
+`dist:production` scripts run `scripts/select-gigidesk-build.js` first, which
+copies the archived folder matching that script's environment into the fixed
+path electron-builder actually bundles: `desktop/bin/rustdesk-windows/`. This
+happens automatically on every run.
 
 ---
 
@@ -340,7 +329,7 @@ Customdesk/builds/
 
 ---
 
-## After Building — Making GIGI Connect Windows Installers
+## After Building — Making GIGI Squad Windows Installers
 
 Once `GIGIdesk-x64\` is in `gigiChat-desktop/bin/`, build the Electron Windows package —
 **use the matching environment** (see Environments above):
@@ -406,5 +395,5 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 | `libs\hbb_common\src\config.rs` | Relay identity constants, `env_production`-gated |
 | `target\x86_64-pc-windows-msvc\release\librustdesk.dll` | Compiled Rust shared library (Windows) |
 | `target\x86_64-pc-windows-msvc\release\service.exe` | Compiled service binary (Windows) |
-| `gigiChat-desktop\bin\GIGIdesk-x64\` | Output — embedded into Electron app (single active slot) |
-| `builds\<staging\|production>\windows\rustdesk-windows\` | Output — local backup in Customdesk repo (gitignored), both environments coexist |
+| `desktop\bin\rustdesk-windows-<Environment>\` | Output — archived per environment, never overwritten |
+| `desktop\bin\rustdesk-windows\` | Staged build — refreshed automatically for whichever environment is being packaged (see `..\desktop\PACKAGING.md`) |

@@ -116,13 +116,19 @@ const CHARS: &[char] = &[
 // the peer"), confirmed live against the real server. Wiring this up needs
 // real sequential try-then-fallback logic in rendezvous_mediator.rs, not
 // simultaneous dual registration — until then, only the IP entry is active.
+// Gated the same way as RENDEZVOUS_SERVERS/RS_PUB_KEY below: staging and
+// production are two independent relays with two independent WSS domains,
+// see docs/infra/plan/domain-change.md.
+#[cfg(feature = "env_production")]
 pub const GIGI_WS_DOMAIN: &str = "rustdesk.gigisquad.com";
+#[cfg(not(feature = "env_production"))]
+pub const GIGI_WS_DOMAIN: &str = "staging.rustdesk.gigisquad.com";
 
 // Which relay a build points at is picked at compile time via the `env_production`
 // Cargo feature (see build-gigidesk.sh / build-gigidesk-windows.ps1 `<env>` arg) —
 // staging is the default so a plain `cargo build` never accidentally ships pointed at
 // production. Both server identities are real, independently-provisioned relays (see
-// docs/infra/production/rustdesk-blueprint.md) — production is NOT staging's box under
+// docs/infra/production/rustdesk.md) — production is NOT staging's box under
 // a different name, it has its own keypair.
 #[cfg(feature = "env_production")]
 pub const RENDEZVOUS_SERVERS: &[&str] = &["32.195.186.150"];
