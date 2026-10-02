@@ -1569,7 +1569,11 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
         import_config = get_import_config(&exe),
     );
     run_cmds(cmds, debug, "install")?;
-    run_after_run_cmds(silent);
+    run_after_run_cmds(if silent {
+        PostRunLaunch::TrayOnly
+    } else {
+        PostRunLaunch::GuiAndTray
+    });
     Ok(())
 }
 
@@ -2682,12 +2686,16 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
         log::debug!("{err}");
         return true;
     }
-    run_after_run_cmds(!show_new_window);
+    run_after_run_cmds(if show_new_window {
+        PostRunLaunch::GuiAndTray
+    } else {
+        PostRunLaunch::TrayOnly
+    });
     std::process::exit(0);
 }
 
-pub fn install_service() -> bool {
-    log::info!("Installing service...");
+pub fn install_service(launch_ui: bool) -> bool {
+    log::info!("Installing service... (launch_ui: {launch_ui})");
     let _installing = crate::platform::InstallingService::new();
     let (_, _, _, exe) = get_install_info();
     let tmp_path = std::env::temp_dir().to_string_lossy().to_string();
@@ -2715,7 +2723,11 @@ if exist \"{tray_shortcut}\" del /f /q \"{tray_shortcut}\"
         log::debug!("{err}");
         return true;
     }
-    run_after_run_cmds(false);
+    run_after_run_cmds(if launch_ui {
+        PostRunLaunch::GuiAndTray
+    } else {
+        PostRunLaunch::Nothing
+    });
     std::process::exit(0);
 }
 
@@ -2956,9 +2968,20 @@ sc start {app_name}
     }
 }
 
-fn run_after_run_cmds(silent: bool) {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PostRunLaunch {
+    GuiAndTray,
+    TrayOnly,
+
+    Nothing,
+}
+
+fn run_after_run_cmds(launch: PostRunLaunch) {
+    if launch == PostRunLaunch::Nothing {
+        return;
+    }
     let (_, _, _, exe) = get_install_info();
-    if !silent {
+    if launch == PostRunLaunch::GuiAndTray {
         log::debug!("Spawn new window");
         allow_err!(std::process::Command::new("cmd")
             .args(&["/c", "timeout", "/t", "2", "&", &format!("{exe}")])

@@ -423,7 +423,7 @@ pub fn set_option(key: String, value: String) {
                         return;
                     }
                 } else {
-                    if crate::platform::install_service() {
+                    if crate::platform::install_service(true) {
                         return;
                     }
                 }

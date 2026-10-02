@@ -172,7 +172,7 @@ fn unsafe_is_can_screen_recording(prompt: bool) -> bool {
     can_record_screen
 }
 
-pub fn install_service() -> bool {
+pub fn install_service(_launch_ui: bool) -> bool {
     is_installed_daemon(false)
 }
 

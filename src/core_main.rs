@@ -350,8 +350,9 @@ pub fn core_main() -> Option<Vec<String>> {
             }
             return None;
         } else if args[0] == "--install-service" {
-            log::info!("start --install-service");
-            crate::platform::install_service();
+            let launch_ui = !args.iter().any(|a| a == "--silent");
+            log::info!("start --install-service (launch_ui: {launch_ui})");
+            crate::platform::install_service(launch_ui);
             return None;
         } else if args[0] == "--uninstall-service" {
             log::info!("start --uninstall-service");

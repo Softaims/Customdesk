@@ -1959,7 +1959,7 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
     std::process::exit(0);
 }
 
-pub fn install_service() -> bool {
+pub fn install_service(_launch_ui: bool) -> bool {
     let _installing = crate::platform::InstallingService::new();
     if !has_cmd("systemctl") {
         return false;
