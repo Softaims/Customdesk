@@ -2686,10 +2686,19 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
         log::debug!("{err}");
         return true;
     }
+    // Never relaunch a tray from here: the cmds above just deregistered the
+    // service and deleted the tray startup shortcut. It never actually happened
+    // either, because stop-service = "Y" is set above and run_after_run_cmds
+    // skips the tray while that is set - but that made the suppression an
+    // accidental side-effect of shared config rather than intent, one
+    // stop-service change away from spawning a tray that inherits the caller's
+    // token. The elevated NSIS installer runs --uninstall-service from both
+    // customInstall and customUnInstall (the latter on every app update), and an
+    // elevated tray there is what silently breaks outbound remote control.
     run_after_run_cmds(if show_new_window {
         PostRunLaunch::GuiAndTray
     } else {
-        PostRunLaunch::TrayOnly
+        PostRunLaunch::Nothing
     });
     std::process::exit(0);
 }
